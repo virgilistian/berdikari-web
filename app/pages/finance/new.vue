@@ -11,12 +11,42 @@
       >
         <ArrowLeft class="w-5 h-5" :stroke-width="1.75" />
       </button>
-      <h1 class="text-h1 text-foreground">Catat Pengeluaran</h1>
+      <h1 class="text-h1 text-foreground">
+        {{ formMode === 'expense' ? 'Catat Pengeluaran' : 'Catat Pemasukan' }}
+      </h1>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="bg-muted p-1 rounded-xl flex" role="tablist" aria-label="Jenis transaksi">
+      <button
+        role="tab"
+        :aria-selected="formMode === 'expense'"
+        @click="switchTab('expense')"
+        class="flex-1 h-10 rounded-lg text-body font-semibold transition-all active:scale-[0.97]"
+        :class="formMode === 'expense'
+          ? 'bg-destructive text-destructive-foreground shadow-elevation-1'
+          : 'text-muted-foreground hover:text-foreground'"
+      >
+        Pengeluaran
+      </button>
+      <button
+        role="tab"
+        :aria-selected="formMode === 'income'"
+        @click="switchTab('income')"
+        class="flex-1 h-10 rounded-lg text-body font-semibold transition-all active:scale-[0.97]"
+        :class="formMode === 'income'
+          ? 'bg-success text-success-foreground shadow-elevation-1'
+          : 'text-muted-foreground hover:text-foreground'"
+      >
+        Pemasukan
+      </button>
     </div>
 
     <!-- Amount input -->
     <div class="bg-surface rounded-xl border border-border p-5 space-y-3 shadow-elevation-1">
-      <label for="amount-input" class="text-small text-muted-foreground block">Berapa yang dikeluarkan?</label>
+      <label for="amount-input" class="text-small text-muted-foreground block">
+        {{ formMode === 'expense' ? 'Berapa yang dikeluarkan?' : 'Berapa pemasukannya?' }}
+      </label>
       <div class="flex items-baseline gap-2">
         <span class="text-h2 text-muted-foreground font-semibold select-none">Rp</span>
         <input
@@ -29,7 +59,7 @@
           placeholder="0"
           autocomplete="off"
           class="flex-1 min-w-0 bg-transparent text-display text-foreground font-bold outline-none placeholder:text-foreground/20 tabular-nums caret-primary"
-          aria-label="Jumlah pengeluaran dalam rupiah"
+          :aria-label="formMode === 'expense' ? 'Jumlah pengeluaran dalam rupiah' : 'Jumlah pemasukan dalam rupiah'"
           @input="onAmountInput"
         />
       </div>
@@ -48,70 +78,187 @@
       </div>
     </div>
 
-    <!-- Category selection -->
-    <div class="space-y-3">
-      <div>
-        <h2 class="text-h3 text-foreground">Digunakan untuk apa?</h2>
-        <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
-      </div>
-      <div class="grid grid-cols-2 gap-2" role="group" aria-label="Kategori pengeluaran">
-        <button
-          v-for="cat in EXPENSE_CATEGORIES"
-          :key="cat"
-          @click="form.category = cat"
-          class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
-          :class="form.category === cat
-            ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
-            : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
-          :aria-pressed="form.category === cat"
-        >
-          {{ cat }}
-        </button>
-      </div>
-    </div>
+    <!-- ── EXPENSE FORM ── -->
+    <template v-if="formMode === 'expense'">
 
-    <!-- Business selection -->
-    <div class="space-y-3">
-      <div>
-        <h2 class="text-h3 text-foreground">Dari usaha mana?</h2>
-        <p class="text-small text-muted-foreground mt-0.5">Saldo usaha ini akan berkurang</p>
-      </div>
-      <div class="grid grid-cols-2 gap-2" role="group" aria-label="Pilih usaha">
-        <button
-          v-for="biz in financeStore.businesses"
-          :key="biz.id"
-          @click="form.business = biz.name"
-          class="relative px-3 py-3 rounded-lg text-left transition-all border active:scale-[0.97]"
-          :class="form.business === biz.name
-            ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
-            : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
-          :aria-pressed="form.business === biz.name"
-        >
-          <p class="text-body font-medium leading-tight">{{ biz.name }}</p>
-          <p
-            class="text-small tabular-nums mt-0.5"
-            :class="form.business === biz.name ? 'text-primary-foreground/70' : 'text-muted-foreground'"
+      <!-- Category selection -->
+      <div class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Digunakan untuk apa?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Kategori pengeluaran">
+          <button
+            v-for="cat in EXPENSE_CATEGORIES"
+            :key="cat"
+            @click="expenseForm.category = cat"
+            class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
+            :class="expenseForm.category === cat
+              ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
+            :aria-pressed="expenseForm.category === cat"
           >
-            Rp {{ biz.balance.toLocaleString('id-ID') }}
-          </p>
-        </button>
+            {{ cat }}
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Notes -->
-    <div class="space-y-2">
-      <h2 class="text-h3 text-foreground">
-        Catatan
-        <span class="text-body text-muted-foreground font-normal ml-1">(opsional)</span>
-      </h2>
-      <textarea
-        v-model="form.notes"
-        placeholder="Misal: beli cabai dan bawang di pasar..."
-        rows="3"
-        class="w-full bg-surface border border-input rounded-lg px-3 py-2.5 text-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors resize-none"
-        aria-label="Catatan pengeluaran"
-      />
-    </div>
+      <!-- Business selection -->
+      <div class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Dari usaha mana?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Saldo usaha ini akan berkurang</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Pilih usaha">
+          <button
+            v-for="biz in financeStore.businesses"
+            :key="biz.id"
+            @click="expenseForm.business = biz.name"
+            class="relative px-3 py-3 rounded-lg text-left transition-all border active:scale-[0.97]"
+            :class="expenseForm.business === biz.name
+              ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
+            :aria-pressed="expenseForm.business === biz.name"
+          >
+            <p class="text-body font-medium leading-tight">{{ biz.name }}</p>
+            <p
+              class="text-small tabular-nums mt-0.5"
+              :class="expenseForm.business === biz.name ? 'text-primary-foreground/70' : 'text-muted-foreground'"
+            >
+              Rp {{ biz.balance.toLocaleString('id-ID') }}
+            </p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="space-y-2">
+        <h2 class="text-h3 text-foreground">
+          Catatan
+          <span class="text-body text-muted-foreground font-normal ml-1">(opsional)</span>
+        </h2>
+        <textarea
+          v-model="expenseForm.notes"
+          placeholder="Misal: beli cabai dan bawang di pasar..."
+          rows="3"
+          class="w-full bg-surface border border-input rounded-lg px-3 py-2.5 text-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors resize-none"
+          aria-label="Catatan pengeluaran"
+        />
+      </div>
+
+    </template>
+
+    <!-- ── INCOME FORM ── -->
+    <template v-else>
+
+      <!-- Category selection -->
+      <div class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Dari mana pemasukan ini?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Kategori pemasukan">
+          <button
+            v-for="cat in INCOME_CATEGORIES"
+            :key="cat"
+            @click="incomeForm.category = cat"
+            class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
+            :class="incomeForm.category === cat
+              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
+            :aria-pressed="incomeForm.category === cat"
+          >
+            {{ cat }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Source selection -->
+      <div class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Masuk ke mana?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Pilih sumber pemasukan</p>
+        </div>
+
+        <!-- Source type sub-toggle -->
+        <div class="bg-muted p-1 rounded-lg flex" role="group" aria-label="Jenis sumber pemasukan">
+          <button
+            @click="incomeForm.sourceType = 'business'; incomeForm.personalSource = ''"
+            class="flex-1 h-8 rounded-md text-small font-medium transition-all active:scale-[0.97]"
+            :class="incomeForm.sourceType === 'business'
+              ? 'bg-surface text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'"
+            :aria-pressed="incomeForm.sourceType === 'business'"
+          >
+            Dari Usaha
+          </button>
+          <button
+            @click="incomeForm.sourceType = 'personal'; incomeForm.business = ''"
+            class="flex-1 h-8 rounded-md text-small font-medium transition-all active:scale-[0.97]"
+            :class="incomeForm.sourceType === 'personal'
+              ? 'bg-surface text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'"
+            :aria-pressed="incomeForm.sourceType === 'personal'"
+          >
+            Non-Usaha
+          </button>
+        </div>
+
+        <!-- Business grid -->
+        <div v-if="incomeForm.sourceType === 'business'" class="grid grid-cols-2 gap-2" role="group" aria-label="Pilih usaha untuk pemasukan">
+          <button
+            v-for="biz in financeStore.businesses"
+            :key="biz.id"
+            @click="incomeForm.business = biz.name"
+            class="relative px-3 py-3 rounded-lg text-left transition-all border active:scale-[0.97]"
+            :class="incomeForm.business === biz.name
+              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
+            :aria-pressed="incomeForm.business === biz.name"
+          >
+            <p class="text-body font-medium leading-tight">{{ biz.name }}</p>
+            <p
+              class="text-small tabular-nums mt-0.5"
+              :class="incomeForm.business === biz.name ? 'text-success-foreground/70' : 'text-muted-foreground'"
+            >
+              Rp {{ biz.balance.toLocaleString('id-ID') }}
+            </p>
+          </button>
+        </div>
+
+        <!-- Personal source grid -->
+        <div v-else class="grid grid-cols-2 gap-2" role="group" aria-label="Sumber pemasukan non-usaha">
+          <button
+            v-for="src in NON_BUSINESS_SOURCES"
+            :key="src"
+            @click="incomeForm.personalSource = src"
+            class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
+            :class="incomeForm.personalSource === src
+              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
+            :aria-pressed="incomeForm.personalSource === src"
+          >
+            {{ src }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="space-y-2">
+        <h2 class="text-h3 text-foreground">
+          Catatan
+          <span class="text-body text-muted-foreground font-normal ml-1">(opsional)</span>
+        </h2>
+        <textarea
+          v-model="incomeForm.notes"
+          placeholder="Misal: pembayaran dari pelanggan setia..."
+          rows="3"
+          class="w-full bg-surface border border-input rounded-lg px-3 py-2.5 text-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-success transition-colors resize-none"
+          aria-label="Catatan pemasukan"
+        />
+      </div>
+
+    </template>
 
     <!-- Desktop save button -->
     <div class="hidden md:block">
@@ -120,19 +267,20 @@
         :disabled="!isFormValid || saving"
         class="w-full h-12 rounded-lg font-medium text-body transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
         :class="isFormValid
-          ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80'
+          ? (formMode === 'expense'
+              ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80'
+              : 'bg-success text-success-foreground hover:bg-success/90 active:bg-success/80')
           : 'bg-muted text-muted-foreground cursor-not-allowed'"
       >
         <Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
         <template v-else>
           <Check class="w-4 h-4" :stroke-width="2.5" />
-          Simpan Pengeluaran
+          {{ formMode === 'expense' ? 'Simpan Pengeluaran' : 'Simpan Pemasukan' }}
         </template>
       </button>
     </div>
 
   </div>
-
 
   <!-- Mobile fixed save bar -->
   <div
@@ -144,9 +292,17 @@
       v-if="isFormValid"
       class="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 mb-2.5"
     >
-      <p class="text-small text-muted-foreground truncate mr-3">{{ form.category }} · {{ form.business }}</p>
-      <p class="text-body text-destructive font-semibold tabular-nums flex-shrink-0">
-        −Rp {{ numericAmount.toLocaleString('id-ID') }}
+      <p class="text-small text-muted-foreground truncate mr-3">
+        {{ formMode === 'expense'
+          ? `${expenseForm.category} · ${expenseForm.business}`
+          : `${incomeForm.category} · ${incomeForm.sourceType === 'business' ? incomeForm.business : incomeForm.personalSource}`
+        }}
+      </p>
+      <p
+        class="text-body font-semibold tabular-nums flex-shrink-0"
+        :class="formMode === 'expense' ? 'text-destructive' : 'text-success'"
+      >
+        {{ formMode === 'expense' ? '−' : '+' }}Rp {{ numericAmount.toLocaleString('id-ID') }}
       </p>
     </div>
     <button
@@ -154,13 +310,15 @@
       :disabled="!isFormValid || saving"
       class="w-full h-12 rounded-lg font-medium text-body transition-all flex items-center justify-center gap-2"
       :class="isFormValid
-        ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 active:scale-[0.98]'
+        ? (formMode === 'expense'
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 active:scale-[0.98]'
+            : 'bg-success text-success-foreground hover:bg-success/90 active:bg-success/80 active:scale-[0.98]')
         : 'bg-muted text-muted-foreground cursor-not-allowed'"
     >
       <Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
       <template v-else>
         <Check class="w-4 h-4" :stroke-width="2.5" />
-        Simpan Pengeluaran
+        {{ formMode === 'expense' ? 'Simpan Pengeluaran' : 'Simpan Pemasukan' }}
       </template>
     </button>
   </div>
@@ -172,21 +330,39 @@
       class="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-5 text-center px-8"
       role="dialog"
       aria-modal="true"
-      aria-label="Pengeluaran berhasil disimpan"
+      :aria-label="savedMode === 'expense' ? 'Pengeluaran berhasil disimpan' : 'Pemasukan berhasil disimpan'"
     >
-      <div class="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center">
-        <CheckCircle2 class="w-8 h-8 text-success" :stroke-width="1.75" />
+      <div
+        class="w-16 h-16 rounded-full flex items-center justify-center"
+        :class="savedMode === 'expense' ? 'bg-primary/10' : 'bg-success/10'"
+      >
+        <CheckCircle2
+          class="w-8 h-8"
+          :class="savedMode === 'expense' ? 'text-primary' : 'text-success'"
+          :stroke-width="1.75"
+        />
       </div>
       <div>
-        <p class="text-h1 text-foreground">Pengeluaran Tersimpan!</p>
+        <p class="text-h1 text-foreground">
+          {{ savedMode === 'expense' ? 'Pengeluaran Tersimpan!' : 'Pemasukan Tersimpan!' }}
+        </p>
         <p class="text-body text-muted-foreground mt-1.5 tabular-nums">
-          Rp {{ savedAmount.toLocaleString('id-ID') }} dari {{ savedBusiness }}
+          <span
+            class="font-semibold"
+            :class="savedMode === 'expense' ? 'text-destructive' : 'text-success'"
+          >
+            {{ savedMode === 'expense' ? '−' : '+' }}Rp {{ savedAmount.toLocaleString('id-ID') }}
+          </span>
+          {{ savedMode === 'expense' ? 'dari' : 'ke' }} {{ savedSource }}
         </p>
       </div>
       <div class="flex flex-col gap-2 w-full max-w-xs">
         <button
           @click="recordAnother"
-          class="h-12 rounded-lg bg-primary text-primary-foreground font-medium text-body hover:bg-primary/90 active:bg-primary/80 active:scale-[0.98] transition-all"
+          class="h-12 rounded-lg font-medium text-body active:scale-[0.98] transition-all"
+          :class="savedMode === 'expense'
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80'
+            : 'bg-success text-success-foreground hover:bg-success/90 active:bg-success/80'"
         >
           Catat Lagi
         </button>
@@ -206,7 +382,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Check, CheckCircle2, Loader2 } from '@lucide/vue'
-import { useFinanceStore, EXPENSE_CATEGORIES } from '~/stores/finance'
+import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES, NON_BUSINESS_SOURCES } from '~/stores/finance'
 
 const router = useRouter()
 const financeStore = useFinanceStore()
@@ -217,9 +393,19 @@ const displayAmount = ref('')
 const saving = ref(false)
 const saved = ref(false)
 const savedAmount = ref(0)
-const savedBusiness = ref('')
+const savedSource = ref('')
+const savedMode = ref<'expense' | 'income'>('expense')
 
-const form = ref({ category: '', business: '', notes: '' })
+const formMode = ref<'expense' | 'income'>('expense')
+
+const expenseForm = ref({ category: '', business: '', notes: '' })
+const incomeForm = ref({
+  category: '',
+  sourceType: 'business' as 'business' | 'personal',
+  business: '',
+  personalSource: '',
+  notes: '',
+})
 
 const quickAmounts = [10_000, 25_000, 50_000, 100_000, 250_000, 500_000]
 
@@ -228,9 +414,27 @@ const numericAmount = computed(() => {
   return cleaned ? parseInt(cleaned, 10) : 0
 })
 
-const isFormValid = computed(() =>
-  numericAmount.value > 0 && form.value.category !== '' && form.value.business !== '',
-)
+const isFormValid = computed(() => {
+  if (numericAmount.value <= 0) return false
+  if (formMode.value === 'expense') {
+    return expenseForm.value.category !== '' && expenseForm.value.business !== ''
+  }
+  if (incomeForm.value.category === '') return false
+  return incomeForm.value.sourceType === 'business'
+    ? incomeForm.value.business !== ''
+    : incomeForm.value.personalSource !== ''
+})
+
+function switchTab(tab: 'expense' | 'income') {
+  if (formMode.value === tab) return
+  formMode.value = tab
+  rawAmount.value = ''
+  displayAmount.value = ''
+  expenseForm.value = { category: '', business: '', notes: '' }
+  incomeForm.value = { category: '', sourceType: 'business', business: '', personalSource: '', notes: '' }
+  saved.value = false
+  setTimeout(() => amountInput.value?.focus(), 50)
+}
 
 function onAmountInput(e: Event) {
   const digits = (e.target as HTMLInputElement).value.replace(/[^0-9]/g, '')
@@ -255,14 +459,29 @@ async function save() {
   await new Promise(r => setTimeout(r, 500))
 
   savedAmount.value = numericAmount.value
-  savedBusiness.value = form.value.business
+  savedMode.value = formMode.value
 
-  financeStore.addExpense({
-    amount: numericAmount.value,
-    category: form.value.category,
-    business: form.value.business,
-    notes: form.value.notes.trim(),
-  })
+  if (formMode.value === 'expense') {
+    savedSource.value = expenseForm.value.business
+    financeStore.addExpense({
+      amount: numericAmount.value,
+      category: expenseForm.value.category,
+      business: expenseForm.value.business,
+      notes: expenseForm.value.notes.trim(),
+    })
+  } else {
+    const source = incomeForm.value.sourceType === 'business'
+      ? incomeForm.value.business
+      : incomeForm.value.personalSource
+    savedSource.value = source
+    financeStore.addIncome({
+      amount: numericAmount.value,
+      category: incomeForm.value.category,
+      sourceType: incomeForm.value.sourceType,
+      source,
+      notes: incomeForm.value.notes.trim(),
+    })
+  }
 
   saving.value = false
   saved.value = true
@@ -271,7 +490,8 @@ async function save() {
 function recordAnother() {
   rawAmount.value = ''
   displayAmount.value = ''
-  form.value = { category: '', business: '', notes: '' }
+  expenseForm.value = { category: '', business: '', notes: '' }
+  incomeForm.value = { category: '', sourceType: 'business', business: '', personalSource: '', notes: '' }
   saved.value = false
   amountInput.value?.focus()
 }

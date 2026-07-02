@@ -16,6 +16,28 @@ export const EXPENSE_CATEGORIES = [
 
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
 
+export const INCOME_CATEGORIES = [
+  'Penjualan',
+  'Jasa',
+  'Pembayaran Piutang',
+  'Investasi',
+  'Hibah',
+  'Lainnya',
+] as const
+
+export type IncomeCategory = typeof INCOME_CATEGORIES[number]
+
+export const NON_BUSINESS_SOURCES = [
+  'Gaji',
+  'Freelance',
+  'Dividen',
+  'Sewa Pribadi',
+  'Hadiah',
+  'Lainnya',
+] as const
+
+export type NonBusinessSource = typeof NON_BUSINESS_SOURCES[number]
+
 export interface Business {
   id: string
   name: string
@@ -27,6 +49,16 @@ export interface Expense {
   amount: number
   category: string
   business: string
+  notes: string
+  createdAt: Date
+}
+
+export interface Income {
+  id: number
+  amount: number
+  category: string
+  sourceType: 'business' | 'personal'
+  source: string
   notes: string
   createdAt: Date
 }
@@ -43,7 +75,56 @@ export const useFinanceStore = defineStore('finance', () => {
     { id: 'lapangan-futsal', name: 'Lap. Futsal',    balance: 6_700_000  },
   ])
 
-  let nextId = 6
+  let nextExpenseId = 6
+  let nextIncomeId = 6
+
+  const incomes = ref<Income[]>([
+    {
+      id: 1,
+      amount: 2_500_000,
+      category: 'Penjualan',
+      sourceType: 'business',
+      source: 'Rumah Makan',
+      notes: 'Pendapatan harian',
+      createdAt: new Date(Date.now() - 2 * 3_600_000),
+    },
+    {
+      id: 2,
+      amount: 1_800_000,
+      category: 'Penjualan',
+      sourceType: 'business',
+      source: 'Coffee Shop',
+      notes: '',
+      createdAt: new Date(Date.now() - 4 * 3_600_000),
+    },
+    {
+      id: 3,
+      amount: 3_200_000,
+      category: 'Jasa',
+      sourceType: 'business',
+      source: 'Bengkel',
+      notes: 'Servis 3 kendaraan',
+      createdAt: new Date(Date.now() - 1 * 86_400_000),
+    },
+    {
+      id: 4,
+      amount: 5_000_000,
+      category: 'Penjualan',
+      sourceType: 'business',
+      source: 'Toko Emas',
+      notes: '',
+      createdAt: new Date(Date.now() - 2 * 86_400_000),
+    },
+    {
+      id: 5,
+      amount: 750_000,
+      category: 'Lainnya',
+      sourceType: 'personal',
+      source: 'Gaji',
+      notes: 'Gaji mingguan',
+      createdAt: new Date(Date.now() - 3 * 86_400_000),
+    },
+  ])
 
   const expenses = ref<Expense[]>([
     {
@@ -97,11 +178,32 @@ export const useFinanceStore = defineStore('finance', () => {
     todayExpenses.value.reduce((sum, e) => sum + e.amount, 0),
   )
 
+  const todayIncomes = computed(() => {
+    const today = new Date().toDateString()
+    return incomes.value.filter(i => new Date(i.createdAt).toDateString() === today)
+  })
+
+  const todayIncomeTotal = computed(() =>
+    todayIncomes.value.reduce((sum, i) => sum + i.amount, 0),
+  )
+
+  const totalIncome = computed(() =>
+    incomes.value.reduce((sum, i) => sum + i.amount, 0),
+  )
+
   function addExpense(data: { amount: number; category: string; business: string; notes: string }) {
     const biz = businesses.value.find(b => b.name === data.business)
     if (biz) biz.balance = Math.max(0, biz.balance - data.amount)
-    expenses.value.unshift({ id: nextId++, ...data, createdAt: new Date() })
+    expenses.value.unshift({ id: nextExpenseId++, ...data, createdAt: new Date() })
   }
 
-  return { businesses, expenses, todayExpenses, todayTotal, addExpense }
+  function addIncome(data: { amount: number; category: string; sourceType: 'business' | 'personal'; source: string; notes: string }) {
+    const biz = data.sourceType === 'business'
+      ? businesses.value.find(b => b.name === data.source)
+      : undefined
+    if (biz) biz.balance = biz.balance + data.amount
+    incomes.value.unshift({ id: nextIncomeId++, ...data, createdAt: new Date() })
+  }
+
+  return { businesses, expenses, incomes, todayExpenses, todayTotal, todayIncomes, todayIncomeTotal, totalIncome, addExpense, addIncome }
 })
