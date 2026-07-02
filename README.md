@@ -1,75 +1,53 @@
-# Nuxt Minimal Starter
+# Berdikari Web
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Frontend for **Berdikari ERP** — a simple, Indonesian-language ERP for SMEs (UMKM). Built with Nuxt 4, Vue 3, Tailwind CSS, and deployed to Cloudflare Pages.
 
-## Setup
+## Tech Stack
 
-Make sure to install dependencies:
+| Layer | Library / Tool |
+|---|---|
+| Framework | Nuxt 4 + Vue 3 |
+| Styling | Tailwind CSS v3 |
+| UI Primitives | Reka UI |
+| Icons | Lucide Vue |
+| State | Pinia |
+| Utils | VueUse |
+| Deploy target | Cloudflare Pages (SSR via Workers) |
+
+## Pages
+
+| Route | Description |
+|---|---|
+| `/` | Dashboard |
+| `/login` | Authentication |
+| `/pos` | Point of Sale |
+| `/catalog` | Product catalog |
+| `/finance` | Cash flow — income, expenses, balance summary |
+
+## Local Development
 
 ```bash
-# npm
 npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+npm run dev       # http://localhost:3000
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+## Build & Preview
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+npm run build     # Nitro → Cloudflare Pages preset (.output/)
+npm run preview   # Preview production build locally
 ```
 
-## Production
+## Deployment
 
-Build the application for production:
+Pushes to `main` that touch `berdikari-web/**` trigger automatic deployment via GitHub Actions (`.github/workflows/deploy-frontend.yml`).
 
-```bash
-# npm
-npm run build
+**Required GitHub Secrets:**
 
-# pnpm
-pnpm build
+| Secret | Description |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Custom token with **Cloudflare Pages: Edit** permission |
+| `CLOUDFLARE_ACCOUNT_ID` | Found in Cloudflare Dashboard → Workers & Pages |
+| `NUXT_PUBLIC_API_BASE` | Backend API URL (e.g. `https://api.berdikari.id`) |
 
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+The Nitro `cloudflare-pages` preset outputs a `_worker.js` (SSR handler) alongside static assets into `.output/public/`, which is what Wrangler deploys.
