@@ -40,7 +40,7 @@ npm run preview   # Preview production build locally
 
 ## Deployment
 
-Pushes to `main` that touch `berdikari-web/**` trigger automatic deployment via GitHub Actions (`.github/workflows/deploy-frontend.yml`).
+Pushes to `main` trigger automatic deployment via GitHub Actions (`.github/workflows/deploy-frontend.yml`).
 
 **Required GitHub Secrets:**
 
