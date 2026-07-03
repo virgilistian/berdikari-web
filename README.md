@@ -34,11 +34,22 @@ npm run dev       # http://localhost:3000
 ## Build & Preview
 
 ```bash
-npm run build     # Nitro → Cloudflare Pages preset (.output/)
+npm run build     # Nitro → Cloudflare Pages preset → outputs to dist/
 npm run preview   # Preview production build locally
 ```
 
 ## Deployment
+
+### Manual
+
+```bash
+npx nuxt build
+npx wrangler pages deploy dist --project-name=berdikari-web --branch=main
+```
+
+> **Note:** The `cloudflare-pages` preset writes to `dist/`, not `.output/public/`. Always deploy from `dist/`.
+
+### CI/CD
 
 Pushes to `main` trigger automatic deployment via GitHub Actions (`.github/workflows/deploy-frontend.yml`).
 
