@@ -50,4 +50,4 @@ Pushes to `main` trigger automatic deployment via GitHub Actions (`.github/workf
 | `CLOUDFLARE_ACCOUNT_ID` | Found in Cloudflare Dashboard → Workers & Pages |
 | `NUXT_PUBLIC_API_BASE` | Backend API URL (e.g. `https://api.berdikari.id`) |
 
-The Nitro `cloudflare-pages` preset outputs a `_worker.js` (SSR handler) alongside static assets into `.output/public/`, which is what Wrangler deploys.
+The Nitro `cloudflare-pages` preset outputs a `_worker.js` (SSR handler) alongside static assets into `dist/`, which is what Wrangler deploys.

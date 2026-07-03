@@ -17,6 +17,14 @@
               aria-label="Cari produk"
             />
           </div>
+          <button
+            @click="showPlateScan = true"
+            class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            aria-label="Pindai piring"
+            title="Pindai piring"
+          >
+            <ScanLine class="w-4 h-4" :stroke-width="1.75" />
+          </button>
           <div class="text-small text-muted-foreground flex-shrink-0 hidden sm:block">
             Kasir: <span class="font-medium text-foreground">Admin</span>
           </div>
@@ -117,6 +125,9 @@
         aria-hidden="true"
       />
     </Transition>
+
+    <!-- Plate scan (camera / upload) -->
+    <PlateScanSheet v-model:open="showPlateScan" @add="addScannedItems" />
 
     <!-- Mobile: Cart bottom sheet -->
     <Transition name="sheet">
@@ -272,14 +283,16 @@ export const CartPanel = defineComponent({
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X } from '@lucide/vue'
+import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
+import PlateScanSheet from '~/components/PlateScanSheet.vue'
 
 const cartStore = useCartStore()
 const products = ref<any[]>([])
 const loading = ref(true)
 const isSubmitting = ref(false)
 const showMobileCart = ref(false)
+const showPlateScan = ref(false)
 const checkoutStatus = ref<'idle' | 'success' | 'error'>('idle')
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
@@ -318,6 +331,14 @@ onMounted(() => {
     loading.value = false
   }, 600)
 })
+
+const addScannedItems = (items: { product: { id: string, name: string, price: number }, quantity: number }[]) => {
+  for (const { product, quantity } of items) {
+    for (let i = 0; i < quantity; i++) {
+      cartStore.addToCart(product)
+    }
+  }
+}
 
 const checkout = async () => {
   if (cartStore.items.length === 0) return
