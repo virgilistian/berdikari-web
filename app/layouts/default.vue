@@ -29,8 +29,20 @@
         </NuxtLink>
       </nav>
 
-      <!-- Collapse toggle -->
+      <!-- Logout / User info -->
       <div class="p-2 border-t border-border flex-shrink-0">
+        <div v-show="sidebarExpanded" class="px-3 py-2 mb-1">
+          <p class="text-caption text-muted-foreground truncate">{{ authStore.user?.name ?? '...' }}</p>
+          <p class="text-caption text-muted-foreground/70 truncate">{{ authStore.user?.email ?? '' }}</p>
+        </div>
+        <button
+          @click="handleLogout"
+          class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors min-h-[44px]"
+          aria-label="Keluar dari aplikasi"
+        >
+          <LogOut class="w-5 h-5 flex-shrink-0" :stroke-width="1.75" />
+          <span v-show="sidebarExpanded" class="text-body whitespace-nowrap">Keluar</span>
+        </button>
         <button
           @click="sidebarExpanded = !sidebarExpanded"
           class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors min-h-[44px]"
@@ -56,12 +68,21 @@
           </div>
           <span class="font-semibold text-foreground text-h3">Berdikari</span>
         </div>
-        <button
-          class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
-          aria-label="Notifikasi"
-        >
-          <Bell class="w-5 h-5" :stroke-width="1.75" />
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+            aria-label="Notifikasi"
+          >
+            <Bell class="w-5 h-5" :stroke-width="1.75" />
+          </button>
+          <button
+            @click="handleLogout"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            aria-label="Keluar"
+          >
+            <LogOut class="w-5 h-5" :stroke-width="1.75" />
+          </button>
+        </div>
       </header>
 
       <!-- Page slot -->
@@ -100,10 +121,18 @@
 import { ref } from 'vue'
 import {
   LayoutDashboard, ShoppingCart, Package, Boxes,
-  BarChart2, Settings, Bell, ChevronLeft, ChevronRight, Wallet,
+  BarChart2, Settings, Bell, ChevronLeft, ChevronRight, Wallet, LogOut,
 } from '@lucide/vue'
+import { useAuthStore } from '~/stores/auth'
 
+const router = useRouter()
+const authStore = useAuthStore()
 const sidebarExpanded = ref(true)
+
+async function handleLogout() {
+  await authStore.logout()
+  router.push('/login')
+}
 
 const navItems = [
   { to: '/',         icon: LayoutDashboard, label: 'Beranda' },

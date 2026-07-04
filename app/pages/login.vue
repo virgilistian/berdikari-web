@@ -80,10 +80,12 @@ import { useRouter } from 'vue-router'
 import { AlertCircle, Eye, EyeOff, Loader2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useAuthStore } from '~/stores/auth'
 
-definePageMeta({ layout: 'auth' })
+definePageMeta({ layout: 'auth', middleware: 'guest' })
 
 const router = useRouter()
+const authStore = useAuthStore()
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
@@ -94,11 +96,11 @@ const handleLogin = async () => {
   loginError.value = ''
   isLoading.value = true
   try {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800))
+    await authStore.login(email.value, password.value)
     router.push('/')
-  } catch {
-    loginError.value = 'Email atau password salah. Silakan coba lagi.'
+  } catch (error: any) {
+    loginError.value =
+      error?.data?.message || 'Email atau password salah. Silakan coba lagi.'
   } finally {
     isLoading.value = false
   }
