@@ -112,20 +112,67 @@
           <component :is="item.icon" class="w-5 h-5" :stroke-width="1.75" />
           <span class="text-caption">{{ item.label }}</span>
         </NuxtLink>
+
+        <!-- "Lainnya": every other menu, permission-filtered -->
+        <button
+          v-if="visibleMoreNav.length > 0"
+          type="button"
+          class="flex flex-col items-center justify-center gap-0.5 flex-1 transition-colors min-h-[44px]"
+          :class="isMoreRouteActive ? 'text-primary' : 'text-muted-foreground'"
+          aria-label="Menu lainnya"
+          :aria-expanded="showMoreSheet"
+          @click="showMoreSheet = true"
+        >
+          <LayoutGrid class="w-5 h-5" :stroke-width="1.75" />
+          <span class="text-caption">Lainnya</span>
+        </button>
       </div>
     </nav>
+
+    <!-- Mobile "Lainnya" bottom sheet -->
+    <DrawerRoot v-model:open="showMoreSheet">
+      <DrawerContent aria-label="Menu lainnya">
+        <DrawerHeader>
+          <DrawerTitle>Menu Lainnya</DrawerTitle>
+        </DrawerHeader>
+        <div class="grid grid-cols-3 gap-2 px-5 pb-6">
+          <NuxtLink
+            v-for="item in visibleMoreNav"
+            :key="item.to"
+            :to="item.to"
+            class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-2 py-4 text-center transition-colors hover:border-primary active:bg-muted/40 min-h-[44px]"
+            :class="route.path.startsWith(item.to) && item.to !== '/' ? 'border-primary text-primary' : 'text-foreground'"
+            :aria-label="item.label"
+            @click="showMoreSheet = false"
+          >
+            <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+              <component :is="item.icon" class="w-4.5 h-4.5 text-primary" :stroke-width="1.75" />
+            </span>
+            <span class="text-caption leading-tight">{{ item.label }}</span>
+          </NuxtLink>
+        </div>
+      </DrawerContent>
+    </DrawerRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import TopNav from '~/components/TopNav.vue'
-import { Bell, ChevronLeft, ChevronRight, LogOut } from '@lucide/vue'
+import { Bell, ChevronLeft, ChevronRight, LayoutGrid, LogOut } from '@lucide/vue'
+import {
+  DrawerContent,
+  DrawerHeader,
+  DrawerRoot,
+  DrawerTitle,
+} from '~/components/ui/drawer'
 import { useAuthStore } from '~/stores/auth'
-import { navItems, mobileNavItems } from '~/config/nav'
+import { navItems, mobileNavItems, mobileMoreItems } from '~/config/nav'
 
 const authStore = useAuthStore()
+const route = useRoute()
 const sidebarExpanded = ref(true)
+const showMoreSheet = ref(false)
 
 /**
  * Only show nav items the authenticated user has permission to access.
@@ -143,6 +190,18 @@ const visibleMobileNav = computed(() =>
     item.permissions.length === 0 ||
     item.permissions.some(p => authStore.hasPermission(p))
   )
+)
+
+const visibleMoreNav = computed(() =>
+  mobileMoreItems.filter(item =>
+    item.permissions.length === 0 ||
+    item.permissions.some(p => authStore.hasPermission(p))
+  )
+)
+
+/** Highlights "Lainnya" when the active route lives inside the sheet. */
+const isMoreRouteActive = computed(() =>
+  visibleMoreNav.value.some(item => item.to !== '/' && route.path.startsWith(item.to))
 )
 
 async function handleLogout() {

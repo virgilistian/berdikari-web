@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
 import {
-  LayoutDashboard, ShoppingCart, Wallet, Package, Boxes, BarChart2, Settings, Users, ShieldCheck, UserCog
+  LayoutDashboard, ShoppingCart, Wallet, Package, Boxes, BarChart2, Settings, Users, ShieldCheck, UserCog, CalendarCheck
 } from '@lucide/vue'
 
 export interface NavItem {
@@ -69,6 +69,12 @@ export const navItems: NavItem[] = [
     permissions: ['employee.view'],
   },
   {
+    to: '/employees/attendance',
+    icon: CalendarCheck,
+    label: 'Absensi',
+    permissions: ['attendance.create', 'attendance.view'],
+  },
+  {
     to: '/settings',
     icon: Settings,
     label: 'Pengaturan',
@@ -89,9 +95,20 @@ export const navItems: NavItem[] = [
 ]
 
 /**
- * Mobile bottom nav shows a curated 5-item subset of the full nav.
- * Items that are too infrequent for mobile bottom placement are excluded.
+ * Mobile bottom nav is limited to the 4 highest-frequency destinations:
+ * Beranda, Keuangan, Kasir, Stok. Everything else stays reachable through
+ * the "Lainnya" sheet rendered by the default layout.
  */
-export const mobileNavItems: NavItem[] = navItems.filter(item =>
-  ['/', '/pos', '/finance', '/catalog', '/reports'].includes(item.to)
+const MOBILE_NAV_ROUTES = ['/', '/finance', '/pos', '/inventory'] as const
+
+export const mobileNavItems: NavItem[] = MOBILE_NAV_ROUTES
+  .map(to => navItems.find(item => item.to === to))
+  .filter((item): item is NavItem => item !== undefined)
+
+/**
+ * Remaining nav items surfaced in the mobile "Lainnya" bottom sheet.
+ * Permission-driven visibility applies exactly like the main nav.
+ */
+export const mobileMoreItems: NavItem[] = navItems.filter(
+  item => !MOBILE_NAV_ROUTES.includes(item.to as typeof MOBILE_NAV_ROUTES[number])
 )

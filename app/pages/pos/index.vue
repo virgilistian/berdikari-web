@@ -4,6 +4,41 @@
 
     <!-- Left: Product panel -->
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Offline / sync status banner -->
+      <div
+        v-if="cartStore.isOffline || cartStore.queuedCount > 0 || failedOrders.length > 0"
+        class="px-4 py-2 border-b border-border flex items-center gap-2 flex-shrink-0"
+        :class="cartStore.isOffline ? 'bg-warning/10' : 'bg-primary/5'"
+        role="status"
+        aria-live="polite"
+      >
+        <WifiOff v-if="cartStore.isOffline" class="w-4 h-4 text-warning flex-shrink-0" :stroke-width="1.75" />
+        <RefreshCw v-else class="w-4 h-4 text-primary flex-shrink-0" :class="cartStore.syncing ? 'animate-spin' : ''" :stroke-width="1.75" />
+        <p class="text-small flex-1 min-w-0 truncate" :class="cartStore.isOffline ? 'text-warning' : 'text-foreground'">
+          <template v-if="cartStore.isOffline">
+            Mode offline — transaksi tetap tersimpan di perangkat
+            <template v-if="cartStore.queuedCount > 0"> ({{ cartStore.queuedCount }} menunggu)</template>
+          </template>
+          <template v-else-if="cartStore.syncing">Menyinkronkan {{ cartStore.queuedCount }} transaksi...</template>
+          <template v-else-if="cartStore.queuedCount > 0">{{ cartStore.queuedCount }} transaksi offline menunggu sinkronisasi</template>
+          <template v-else>{{ failedOrders.length }} transaksi ditolak server</template>
+        </p>
+        <button
+          v-if="!cartStore.isOffline && cartStore.queuedCount > 0 && !cartStore.syncing"
+          @click="cartStore.syncPendingOrders()"
+          class="text-small text-primary font-medium min-h-[36px] px-2 hover:text-primary/80 transition-colors flex-shrink-0"
+        >
+          Sinkronkan
+        </button>
+        <button
+          v-if="failedOrders.length > 0"
+          @click="discardFailed"
+          class="text-small text-destructive font-medium min-h-[36px] px-2 hover:text-destructive/80 transition-colors flex-shrink-0"
+        >
+          Hapus yang ditolak
+        </button>
+      </div>
+
       <!-- Search + filter bar -->
       <div class="px-4 py-3 border-b border-border bg-surface space-y-2.5 flex-shrink-0">
         <div class="flex items-center gap-3">
@@ -19,9 +54,10 @@
           </div>
           <button
             @click="showPlateScan = true"
-            class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-            aria-label="Pindai piring"
-            title="Pindai piring"
+            :disabled="cartStore.isOffline"
+            class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            :aria-label="cartStore.isOffline ? 'Pindai piring tidak tersedia saat offline' : 'Pindai piring'"
+            :title="cartStore.isOffline ? 'Tidak tersedia saat offline' : 'Pindai piring'"
           >
             <ScanLine class="w-4 h-4" :stroke-width="1.75" />
           </button>
@@ -252,7 +288,7 @@
 <!-- CartPanel sub-component defined inline -->
 <script lang="ts">
 import { defineComponent, h, ref as vRef } from 'vue'
-import { Minus, Plus, CheckCircle2, AlertCircle, Clock, Save, User } from '@lucide/vue'
+import { Minus, Plus, CheckCircle2, AlertCircle, Clock, CloudOff, Save, User } from '@lucide/vue'
 
 function receiptRow(label: string, value: string, valueClass = 'text-foreground') {
   return h('div', { class: 'flex items-center justify-between' }, [
@@ -279,13 +315,15 @@ export const CartPanel = defineComponent({
       if (checkoutStatus === 'success' && lastOrder) {
         const paid = lastOrder.payment_status === 'paid'
         const held = lastOrder.status === 'open'
+        const queued = !!cartStore.lastOrderQueued
         return h('div', { class: 'flex flex-col items-center justify-center h-full gap-4 p-8 text-center' }, [
-          h('div', { class: `w-14 h-14 rounded-full flex items-center justify-center ${paid ? 'bg-success/10' : 'bg-warning/10'}` },
-            h(paid ? CheckCircle2 : Clock, { class: paid ? 'w-7 h-7 text-success' : 'w-7 h-7 text-warning', strokeWidth: 1.75 })
+          h('div', { class: `w-14 h-14 rounded-full flex items-center justify-center ${queued ? 'bg-warning/10' : (paid ? 'bg-success/10' : 'bg-warning/10')}` },
+            h(queued ? CloudOff : (paid ? CheckCircle2 : Clock), { class: queued ? 'w-7 h-7 text-warning' : (paid ? 'w-7 h-7 text-success' : 'w-7 h-7 text-warning'), strokeWidth: 1.75 })
           ),
           h('div', {}, [
-            h('p', { class: 'text-h2 text-foreground' }, held ? 'Pesanan Tersimpan' : (paid ? 'Pembayaran Berhasil' : 'Pesanan Belum Lunas')),
-            h('p', { class: 'text-small text-muted-foreground mt-1' }, `No. ${lastOrder.order_no ?? '-'}`),
+            h('p', { class: 'text-h2 text-foreground' }, queued ? 'Tersimpan Offline' : (held ? 'Pesanan Tersimpan' : (paid ? 'Pembayaran Berhasil' : 'Pesanan Belum Lunas'))),
+            h('p', { class: 'text-small text-muted-foreground mt-1' },
+              queued ? 'Akan disinkronkan otomatis saat koneksi kembali' : `No. ${lastOrder.order_no ?? '-'}`),
           ]),
           h('div', { class: 'w-full max-w-[16rem] space-y-1 text-body' }, [
             receiptRow('Total', formatRupiah(lastOrder.total_amount)),
@@ -427,7 +465,7 @@ definePageMeta({
 })
 
 import { ref, computed, onMounted } from 'vue'
-import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText } from '@lucide/vue'
+import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText, RefreshCw, WifiOff } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
 import { formatRupiah } from '~/utils'
 import PlateScanSheet from '~/components/PlateScanSheet.vue'
@@ -465,6 +503,12 @@ const filteredProducts = computed(() => {
 })
 
 const changeDue = computed(() => (cashTendered.value ?? 0) - cartStore.totalAmount)
+
+const failedOrders = computed(() => cartStore.pendingOrders.filter(o => o.status === 'failed'))
+
+function discardFailed() {
+  for (const order of failedOrders.value) cartStore.discardPendingOrder(order.client_uuid)
+}
 
 const quickAmounts = computed(() => {
   const total = cartStore.totalAmount

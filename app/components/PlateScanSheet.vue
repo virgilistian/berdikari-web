@@ -121,15 +121,49 @@ function setImage(file: File) {
   step.value = 'preview'
 }
 
+/**
+ * Downscale the photo before upload (max 1280px, JPEG). Smaller uploads are
+ * dramatically faster on mobile data and give the AI a consistent input
+ * size, which improves detection reliability.
+ */
+async function optimizeImage(file: File): Promise<File> {
+  const MAX_DIMENSION = 1280
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height))
+    if (scale >= 1 && file.type === 'image/jpeg') return file
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+
+    const blob = await new Promise<Blob | null>(resolve =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.85))
+    return blob ? new File([blob], 'plate.jpg', { type: 'image/jpeg' }) : file
+  }
+  catch {
+    // Optimization is best-effort — fall back to the original photo.
+    return file
+  }
+}
+
 async function scan() {
   if (!imageFile) return
+  if (import.meta.client && !navigator.onLine) {
+    errorMessage.value = 'Pindai piring membutuhkan koneksi internet. Tambahkan item secara manual saat offline.'
+    step.value = 'error'
+    return
+  }
   step.value = 'scanning'
   const body = new FormData()
-  body.append('image', imageFile)
+  body.append('image', await optimizeImage(imageFile))
 
+  const api = useApi()
   try {
-    const result = await $fetch<{ items: Omit<MatchedItem, 'selected'>[], unmatched: UnmatchedItem[], demo?: boolean }>(
-      '/api/v1/sales/scan-plate',
+    const result = await api<{ items: Omit<MatchedItem, 'selected'>[], unmatched: UnmatchedItem[], demo?: boolean }>(
+      '/v1/sales/scan-plate',
       { method: 'POST', body },
     )
     isDemoResult.value = !!result.demo
@@ -152,8 +186,14 @@ async function scan() {
   }
 }
 
+const CONFIDENCE_ORDER = { high: 0, medium: 1, low: 2 } as const
+
 function showResult(items: Omit<MatchedItem, 'selected'>[], unmatchedItems: UnmatchedItem[]) {
-  matched.value = items.map(item => ({ ...item, selected: true }))
+  // Most reliable matches first; low-confidence guesses start unchecked so
+  // the kasir confirms them deliberately instead of removing them.
+  matched.value = [...items]
+    .sort((a, b) => CONFIDENCE_ORDER[a.confidence] - CONFIDENCE_ORDER[b.confidence])
+    .map(item => ({ ...item, selected: item.confidence !== 'low' }))
   unmatched.value = unmatchedItems
   step.value = 'result'
 }
@@ -215,6 +255,9 @@ function addToOrder() {
               <span class="block text-small text-muted-foreground">Pilih foto dari galeri</span>
             </span>
           </button>
+          <p class="text-small text-muted-foreground">
+            Tips: foto dari atas dengan cahaya cukup dan seluruh piring terlihat agar deteksi lebih akurat.
+          </p>
         </div>
 
         <!-- Live camera -->
