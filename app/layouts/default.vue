@@ -17,7 +17,7 @@
       <!-- Nav items -->
       <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         <NuxtLink
-          v-for="item in navItems"
+          v-for="item in visibleNav"
           :key="item.to"
           :to="item.to"
           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors min-h-[44px]"
@@ -35,14 +35,7 @@
           <p class="text-caption text-muted-foreground truncate">{{ authStore.user?.name ?? '...' }}</p>
           <p class="text-caption text-muted-foreground/70 truncate">{{ authStore.user?.email ?? '' }}</p>
         </div>
-        <button
-          @click="handleLogout"
-          class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors min-h-[44px]"
-          aria-label="Keluar dari aplikasi"
-        >
-          <LogOut class="w-5 h-5 flex-shrink-0" :stroke-width="1.75" />
-          <span v-show="sidebarExpanded" class="text-body whitespace-nowrap">Keluar</span>
-        </button>
+
         <button
           @click="sidebarExpanded = !sidebarExpanded"
           class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors min-h-[44px]"
@@ -60,6 +53,13 @@
       class="flex flex-col min-h-screen transition-[padding] duration-220 ease-out"
       :class="sidebarExpanded ? 'md:pl-60' : 'md:pl-16'"
     >
+      <!-- Desktop top navigation bar -->
+      <TopNav
+        class="hidden md:flex"
+        :sidebar-expanded="sidebarExpanded"
+        @toggle-sidebar="sidebarExpanded = !sidebarExpanded"
+      />
+
       <!-- Mobile top bar -->
       <header class="md:hidden sticky top-0 z-20 flex items-center justify-between px-4 h-14 bg-surface border-b border-border" style="padding-top: env(safe-area-inset-top, 0px)">
         <div class="flex items-center gap-2.5">
@@ -102,7 +102,7 @@
     >
       <div class="flex justify-around items-stretch h-16">
         <NuxtLink
-          v-for="item in mobileNavItems"
+          v-for="item in visibleMobileNav"
           :key="item.to"
           :to="item.to"
           class="flex flex-col items-center justify-center gap-0.5 flex-1 text-muted-foreground transition-colors min-h-[44px]"
@@ -118,37 +118,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import {
-  LayoutDashboard, ShoppingCart, Package, Boxes,
-  BarChart2, Settings, Bell, ChevronLeft, ChevronRight, Wallet, LogOut,
-} from '@lucide/vue'
+import { ref, computed } from 'vue'
+import TopNav from '~/components/TopNav.vue'
+import { Bell, ChevronLeft, ChevronRight, LogOut } from '@lucide/vue'
 import { useAuthStore } from '~/stores/auth'
+import { navItems, mobileNavItems } from '~/config/nav'
 
-const router = useRouter()
 const authStore = useAuthStore()
 const sidebarExpanded = ref(true)
 
+/**
+ * Only show nav items the authenticated user has permission to access.
+ * An item with an empty permissions[] is always shown (e.g. Beranda).
+ */
+const visibleNav = computed(() =>
+  navItems.filter(item =>
+    item.permissions.length === 0 ||
+    item.permissions.some(p => authStore.hasPermission(p))
+  )
+)
+
+const visibleMobileNav = computed(() =>
+  mobileNavItems.filter(item =>
+    item.permissions.length === 0 ||
+    item.permissions.some(p => authStore.hasPermission(p))
+  )
+)
+
 async function handleLogout() {
   await authStore.logout()
-  router.push('/login')
+  window.location.replace('/login')
 }
-
-const navItems = [
-  { to: '/',         icon: LayoutDashboard, label: 'Beranda' },
-  { to: '/pos',      icon: ShoppingCart,    label: 'Kasir' },
-  { to: '/finance',  icon: Wallet,          label: 'Keuangan' },
-  { to: '/catalog',  icon: Package,         label: 'Katalog' },
-  { to: '/inventory',icon: Boxes,           label: 'Stok' },
-  { to: '/reports',  icon: BarChart2,        label: 'Laporan' },
-  { to: '/settings', icon: Settings,         label: 'Pengaturan' },
-]
-
-const mobileNavItems = [
-  { to: '/',        icon: LayoutDashboard, label: 'Beranda' },
-  { to: '/pos',     icon: ShoppingCart,    label: 'Kasir' },
-  { to: '/finance', icon: Wallet,          label: 'Keuangan' },
-  { to: '/catalog', icon: Package,         label: 'Katalog' },
-  { to: '/reports', icon: BarChart2,        label: 'Laporan' },
-]
 </script>
+

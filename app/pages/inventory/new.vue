@@ -131,6 +131,11 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['inventory.create'],
+})
+
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Minus, Plus, Check, Loader2 } from '@lucide/vue'

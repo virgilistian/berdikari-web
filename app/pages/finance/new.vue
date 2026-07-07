@@ -379,6 +379,11 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['finance.create'],
+})
+
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Check, CheckCircle2, Loader2 } from '@lucide/vue'

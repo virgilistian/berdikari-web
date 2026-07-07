@@ -189,6 +189,11 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['finance.view'],
+})
+
 import { ref, computed, watch } from 'vue'
 import { Plus, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'

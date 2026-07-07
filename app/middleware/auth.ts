@@ -1,13 +1,10 @@
 import { useAuthStore } from '~/stores/auth'
 
 /**
- * Global route guard: redirects unauthenticated users to /login.
- * The /login page itself is excluded to avoid redirect loops.
+ * Route guard: redirects unauthenticated users to /login.
  * Token is stored in a cookie (SSR-safe via useCookie in auth store).
  */
 export default defineNuxtRouteMiddleware(async (to) => {
-  // Allow public routes
-  if (to.path === '/login') return
 
   const authStore = useAuthStore()
 
@@ -15,8 +12,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/login')
   }
 
-  // Hydrate user object on client after page refresh
-  if (import.meta.client && !authStore.user) {
+  // Hydrate the user object when missing — on the server (SSR / refresh /
+  // deep-link) as well as the client. This must complete before the
+  // `permission` middleware evaluates, otherwise permission-gated pages would
+  // wrongly redirect to /403 on a hard load because the user isn't loaded yet.
+  if (!authStore.user) {
     await authStore.fetchUser()
     if (!authStore.isAuthenticated) {
       return navigateTo('/login')

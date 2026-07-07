@@ -132,6 +132,11 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['inventory.view'],
+})
+
 import { onMounted, computed } from 'vue'
 import { Plus, Loader2, LogOut, CheckCircle2, Boxes } from '@lucide/vue'
 import { useDailyStockStore, type DailyStockItem } from '~/stores/dailyStock'

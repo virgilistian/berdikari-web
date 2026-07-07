@@ -282,6 +282,11 @@ export const CartPanel = defineComponent({
 </script>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['pos.view', 'pos.open'],
+})
+
 import { ref, computed, onMounted } from 'vue'
 import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'

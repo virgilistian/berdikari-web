@@ -113,6 +113,10 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth'],  // dashboard: visible to all authenticated users
+})
+
 import { ref, computed, onMounted } from 'vue'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingUp, TrendingDown,

@@ -127,6 +127,11 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth', 'permission'],
+  permissions: ['catalog.view'],
+})
+
 import { ref, computed, onMounted } from 'vue'
 import { Plus, Search, Package, PackageSearch, SlidersHorizontal, MoreVertical } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
