@@ -6,6 +6,10 @@
       <div>
         <p class="text-small text-muted-foreground">{{ formattedDate }}</p>
         <h1 class="text-h1 text-foreground mt-0.5">Stok Harian</h1>
+        <NuxtLink to="/inventory/stock" class="inline-flex items-center gap-1 text-small text-primary hover:text-primary/80 mt-1">
+          Stok &amp; Valuasi
+          <ChevronRight class="w-3.5 h-3.5" :stroke-width="1.75" />
+        </NuxtLink>
       </div>
       <!-- Only show Add button when day hasn't been opened yet -->
       <NuxtLink v-if="!store.hasStocks && !store.loading" to="/inventory/new">
@@ -138,7 +142,7 @@ definePageMeta({
 })
 
 import { onMounted, computed } from 'vue'
-import { Plus, Loader2, LogOut, CheckCircle2, Boxes } from '@lucide/vue'
+import { Plus, Loader2, LogOut, CheckCircle2, Boxes, ChevronRight } from '@lucide/vue'
 import { useDailyStockStore, type DailyStockItem } from '~/stores/dailyStock'
 
 const store = useDailyStockStore()

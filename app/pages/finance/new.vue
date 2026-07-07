@@ -81,6 +81,28 @@
     <!-- ── EXPENSE FORM ── -->
     <template v-if="formMode === 'expense'">
 
+      <!-- Business selector -->
+      <div v-if="financeStore.businesses.length > 0" class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Dari bisnis mana?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Pilih bisnis terkait</p>
+        </div>
+        <div class="flex gap-2 flex-wrap" role="group" aria-label="Pilih bisnis">
+          <button
+            v-for="biz in financeStore.businesses"
+            :key="biz.id"
+            @click="selectedBusinessId = biz.id"
+            class="h-11 px-4 rounded-lg text-body font-medium transition-all border active:scale-[0.97]"
+            :class="selectedBusinessId === biz.id
+              ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
+            :aria-pressed="selectedBusinessId === biz.id"
+          >
+            {{ biz.name }}
+          </button>
+        </div>
+      </div>
+
       <!-- Category selection -->
       <div class="space-y-3">
         <div>
@@ -99,34 +121,6 @@
             :aria-pressed="expenseForm.category === cat"
           >
             {{ cat }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Business selection -->
-      <div class="space-y-3">
-        <div>
-          <h2 class="text-h3 text-foreground">Dari usaha mana?</h2>
-          <p class="text-small text-muted-foreground mt-0.5">Saldo usaha ini akan berkurang</p>
-        </div>
-        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Pilih usaha">
-          <button
-            v-for="biz in financeStore.businesses"
-            :key="biz.id"
-            @click="expenseForm.business = biz.name"
-            class="relative px-3 py-3 rounded-lg text-left transition-all border active:scale-[0.97]"
-            :class="expenseForm.business === biz.name
-              ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
-              : 'bg-surface text-foreground border-border hover:border-primary/40 hover:bg-accent'"
-            :aria-pressed="expenseForm.business === biz.name"
-          >
-            <p class="text-body font-medium leading-tight">{{ biz.name }}</p>
-            <p
-              class="text-small tabular-nums mt-0.5"
-              :class="expenseForm.business === biz.name ? 'text-primary-foreground/70' : 'text-muted-foreground'"
-            >
-              Rp {{ biz.balance.toLocaleString('id-ID') }}
-            </p>
           </button>
         </div>
       </div>
@@ -151,6 +145,28 @@
     <!-- ── INCOME FORM ── -->
     <template v-else>
 
+      <!-- Business selector -->
+      <div v-if="financeStore.businesses.length > 0" class="space-y-3">
+        <div>
+          <h2 class="text-h3 text-foreground">Dari bisnis mana?</h2>
+          <p class="text-small text-muted-foreground mt-0.5">Pilih bisnis terkait</p>
+        </div>
+        <div class="flex gap-2 flex-wrap" role="group" aria-label="Pilih bisnis">
+          <button
+            v-for="biz in financeStore.businesses"
+            :key="biz.id"
+            @click="selectedBusinessId = biz.id"
+            class="h-11 px-4 rounded-lg text-body font-medium transition-all border active:scale-[0.97]"
+            :class="selectedBusinessId === biz.id
+              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
+              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
+            :aria-pressed="selectedBusinessId === biz.id"
+          >
+            {{ biz.name }}
+          </button>
+        </div>
+      </div>
+
       <!-- Category selection -->
       <div class="space-y-3">
         <div>
@@ -169,76 +185,6 @@
             :aria-pressed="incomeForm.category === cat"
           >
             {{ cat }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Source selection -->
-      <div class="space-y-3">
-        <div>
-          <h2 class="text-h3 text-foreground">Masuk ke mana?</h2>
-          <p class="text-small text-muted-foreground mt-0.5">Pilih sumber pemasukan</p>
-        </div>
-
-        <!-- Source type sub-toggle -->
-        <div class="bg-muted p-1 rounded-lg flex" role="group" aria-label="Jenis sumber pemasukan">
-          <button
-            @click="incomeForm.sourceType = 'business'; incomeForm.personalSource = ''"
-            class="flex-1 h-8 rounded-md text-small font-medium transition-all active:scale-[0.97]"
-            :class="incomeForm.sourceType === 'business'
-              ? 'bg-surface text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'"
-            :aria-pressed="incomeForm.sourceType === 'business'"
-          >
-            Dari Usaha
-          </button>
-          <button
-            @click="incomeForm.sourceType = 'personal'; incomeForm.business = ''"
-            class="flex-1 h-8 rounded-md text-small font-medium transition-all active:scale-[0.97]"
-            :class="incomeForm.sourceType === 'personal'
-              ? 'bg-surface text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'"
-            :aria-pressed="incomeForm.sourceType === 'personal'"
-          >
-            Non-Usaha
-          </button>
-        </div>
-
-        <!-- Business grid -->
-        <div v-if="incomeForm.sourceType === 'business'" class="grid grid-cols-2 gap-2" role="group" aria-label="Pilih usaha untuk pemasukan">
-          <button
-            v-for="biz in financeStore.businesses"
-            :key="biz.id"
-            @click="incomeForm.business = biz.name"
-            class="relative px-3 py-3 rounded-lg text-left transition-all border active:scale-[0.97]"
-            :class="incomeForm.business === biz.name
-              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
-              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
-            :aria-pressed="incomeForm.business === biz.name"
-          >
-            <p class="text-body font-medium leading-tight">{{ biz.name }}</p>
-            <p
-              class="text-small tabular-nums mt-0.5"
-              :class="incomeForm.business === biz.name ? 'text-success-foreground/70' : 'text-muted-foreground'"
-            >
-              Rp {{ biz.balance.toLocaleString('id-ID') }}
-            </p>
-          </button>
-        </div>
-
-        <!-- Personal source grid -->
-        <div v-else class="grid grid-cols-2 gap-2" role="group" aria-label="Sumber pemasukan non-usaha">
-          <button
-            v-for="src in NON_BUSINESS_SOURCES"
-            :key="src"
-            @click="incomeForm.personalSource = src"
-            class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
-            :class="incomeForm.personalSource === src
-              ? 'bg-success text-success-foreground border-success shadow-elevation-1'
-              : 'bg-surface text-foreground border-border hover:border-success/40 hover:bg-accent'"
-            :aria-pressed="incomeForm.personalSource === src"
-          >
-            {{ src }}
           </button>
         </div>
       </div>
@@ -262,6 +208,7 @@
 
     <!-- Desktop save button -->
     <div class="hidden md:block">
+      <p v-if="saveError" class="text-small text-destructive mb-2">{{ saveError }}</p>
       <button
         @click="save"
         :disabled="!isFormValid || saving"
@@ -293,10 +240,7 @@
       class="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 mb-2.5"
     >
       <p class="text-small text-muted-foreground truncate mr-3">
-        {{ formMode === 'expense'
-          ? `${expenseForm.category} · ${expenseForm.business}`
-          : `${incomeForm.category} · ${incomeForm.sourceType === 'business' ? incomeForm.business : incomeForm.personalSource}`
-        }}
+        {{ formMode === 'expense' ? expenseForm.category : incomeForm.category }}
       </p>
       <p
         class="text-body font-semibold tabular-nums flex-shrink-0"
@@ -384,13 +328,26 @@ definePageMeta({
   permissions: ['finance.create'],
 })
 
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Check, CheckCircle2, Loader2 } from '@lucide/vue'
-import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES, NON_BUSINESS_SOURCES } from '~/stores/finance'
+import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '~/stores/finance'
+import { useAuthStore } from '~/stores/auth'
 
 const router = useRouter()
 const financeStore = useFinanceStore()
+const authStore = useAuthStore()
+
+onMounted(() => {
+  financeStore.fetchBusinesses().then(() => {
+    // Default to the user's own business
+    if (!selectedBusinessId.value && authStore.user?.business_id) {
+      selectedBusinessId.value = authStore.user.business_id
+    }
+  })
+})
+
+const selectedBusinessId = ref<string | null>(authStore.user?.business_id ?? null)
 
 const amountInput = ref<HTMLInputElement | null>(null)
 const rawAmount = ref('')
@@ -400,17 +357,12 @@ const saved = ref(false)
 const savedAmount = ref(0)
 const savedSource = ref('')
 const savedMode = ref<'expense' | 'income'>('expense')
+const saveError = ref<string | null>(null)
 
 const formMode = ref<'expense' | 'income'>('expense')
 
-const expenseForm = ref({ category: '', business: '', notes: '' })
-const incomeForm = ref({
-  category: '',
-  sourceType: 'business' as 'business' | 'personal',
-  business: '',
-  personalSource: '',
-  notes: '',
-})
+const expenseForm = ref({ category: '', notes: '' })
+const incomeForm = ref({ category: '', notes: '' })
 
 const quickAmounts = [10_000, 25_000, 50_000, 100_000, 250_000, 500_000]
 
@@ -421,13 +373,9 @@ const numericAmount = computed(() => {
 
 const isFormValid = computed(() => {
   if (numericAmount.value <= 0) return false
-  if (formMode.value === 'expense') {
-    return expenseForm.value.category !== '' && expenseForm.value.business !== ''
-  }
-  if (incomeForm.value.category === '') return false
-  return incomeForm.value.sourceType === 'business'
-    ? incomeForm.value.business !== ''
-    : incomeForm.value.personalSource !== ''
+  return formMode.value === 'expense'
+    ? expenseForm.value.category !== ''
+    : incomeForm.value.category !== ''
 })
 
 function switchTab(tab: 'expense' | 'income') {
@@ -435,8 +383,8 @@ function switchTab(tab: 'expense' | 'income') {
   formMode.value = tab
   rawAmount.value = ''
   displayAmount.value = ''
-  expenseForm.value = { category: '', business: '', notes: '' }
-  incomeForm.value = { category: '', sourceType: 'business', business: '', personalSource: '', notes: '' }
+  expenseForm.value = { category: '', notes: '' }
+  incomeForm.value = { category: '', notes: '' }
   saved.value = false
   setTimeout(() => amountInput.value?.focus(), 50)
 }
@@ -461,42 +409,36 @@ function formatQuickAmount(amount: number): string {
 async function save() {
   if (!isFormValid.value || saving.value) return
   saving.value = true
-  await new Promise(r => setTimeout(r, 500))
+  try {
+    const isExpense = formMode.value === 'expense'
+    const category = isExpense ? expenseForm.value.category : incomeForm.value.category
+    const note = (isExpense ? expenseForm.value.notes : incomeForm.value.notes).trim()
 
-  savedAmount.value = numericAmount.value
-  savedMode.value = formMode.value
+    await financeStore.createEntry({
+      type: isExpense ? 'expense' : 'income',
+      amount: numericAmount.value,
+      category,
+      note: note || undefined,
+      business_id: selectedBusinessId.value ?? undefined,
+    })
 
-  if (formMode.value === 'expense') {
-    savedSource.value = expenseForm.value.business
-    financeStore.addExpense({
-      amount: numericAmount.value,
-      category: expenseForm.value.category,
-      business: expenseForm.value.business,
-      notes: expenseForm.value.notes.trim(),
-    })
-  } else {
-    const source = incomeForm.value.sourceType === 'business'
-      ? incomeForm.value.business
-      : incomeForm.value.personalSource
-    savedSource.value = source
-    financeStore.addIncome({
-      amount: numericAmount.value,
-      category: incomeForm.value.category,
-      sourceType: incomeForm.value.sourceType,
-      source,
-      notes: incomeForm.value.notes.trim(),
-    })
+    savedAmount.value = numericAmount.value
+    savedMode.value = formMode.value
+    savedSource.value = category
+    saved.value = true
+  } catch (e: any) {
+    saveError.value = e?.data?.message ?? 'Gagal menyimpan transaksi.'
+  } finally {
+    saving.value = false
   }
-
-  saving.value = false
-  saved.value = true
 }
 
 function recordAnother() {
   rawAmount.value = ''
   displayAmount.value = ''
-  expenseForm.value = { category: '', business: '', notes: '' }
-  incomeForm.value = { category: '', sourceType: 'business', business: '', personalSource: '', notes: '' }
+  expenseForm.value = { category: '', notes: '' }
+  incomeForm.value = { category: '', notes: '' }
+  saveError.value = null
   saved.value = false
   amountInput.value?.focus()
 }

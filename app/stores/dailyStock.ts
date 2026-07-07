@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useAuthStore } from '~/stores/auth'
 
 export interface DailyStockItem {
   id: string
@@ -11,8 +12,6 @@ export interface DailyStockItem {
   status: 'open' | 'closed'
 }
 
-const DUMMY_BUSINESS_ID = '123e4567-e89b-12d3-a456-426614174000'
-
 export const useDailyStockStore = defineStore('dailyStock', () => {
   const stocks = ref<DailyStockItem[]>([])
   const loading = ref(false)
@@ -23,13 +22,18 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
   const isOpen = computed(() => stocks.value.some(s => s.status === 'open'))
   const isClosed = computed(() => stocks.value.length > 0 && stocks.value.every(s => s.status === 'closed'))
 
+  function businessId(): string | null {
+    return useAuthStore().user?.business_id ?? null
+  }
+
   async function fetchToday() {
     loading.value = true
     error.value = null
     try {
-      const res = await $fetch<{ data: DailyStockItem[] }>(
-        `/api/v1/inventory/daily-stock/${today}`,
-        { query: { business_id: DUMMY_BUSINESS_ID } }
+      const api = useApi()
+      const res = await api<{ data: DailyStockItem[] }>(
+        `/v1/inventory/daily-stock/${today}`,
+        { query: { business_id: businessId() } }
       )
       stocks.value = res.data
     } catch {
@@ -43,9 +47,10 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await $fetch<{ data: DailyStockItem[] }>('/api/v1/inventory/daily-stock/open', {
+      const api = useApi()
+      const res = await api<{ data: DailyStockItem[] }>('/v1/inventory/daily-stock/open', {
         method: 'POST',
-        body: { business_id: DUMMY_BUSINESS_ID, date: today, items },
+        body: { business_id: businessId(), date: today, items },
       })
       stocks.value = res.data
     } catch (e: any) {
@@ -60,9 +65,10 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await $fetch<{ data: DailyStockItem[] }>('/api/v1/inventory/daily-stock/close', {
+      const api = useApi()
+      const res = await api<{ data: DailyStockItem[] }>('/v1/inventory/daily-stock/close', {
         method: 'POST',
-        body: { business_id: DUMMY_BUSINESS_ID, date: today },
+        body: { business_id: businessId(), date: today },
       })
       stocks.value = res.data
     } catch (e: any) {

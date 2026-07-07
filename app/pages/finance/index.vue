@@ -43,6 +43,15 @@
           :options="categoryOptions"
           default-value="Semua"
         />
+
+        <FilterSheet
+          v-if="businessOptions.length > 1"
+          v-model="activeBusiness"
+          title="Pilih bisnis"
+          trigger-label="Bisnis"
+          :options="businessOptions"
+          default-value="Semua"
+        />
       </div>
 
       <!-- Summary cards -->
@@ -93,16 +102,19 @@
 
       <!-- Business balances -->
       <div>
-        <h2 class="text-h3 text-foreground mb-3">Saldo Usaha</h2>
-        <div class="flex gap-3 overflow-x-auto pb-1 -mx-4 md:mx-0 px-4 md:px-0 scrollbar-none">
+        <h2 class="text-h3 text-foreground mb-3">Rincian Kategori</h2>
+        <div v-if="categoryBreakdown.length === 0" class="text-body text-muted-foreground">
+          Belum ada rincian untuk filter ini.
+        </div>
+        <div v-else class="flex gap-3 overflow-x-auto pb-1 -mx-4 md:mx-0 px-4 md:px-0 scrollbar-none">
           <div
-            v-for="biz in financeStore.businesses"
-            :key="biz.id"
+            v-for="c in categoryBreakdown"
+            :key="c.category"
             class="flex-shrink-0 w-40 bg-surface rounded-xl border border-border p-3.5 shadow-elevation-1"
           >
-            <p class="text-caption text-muted-foreground truncate">{{ biz.name }}</p>
-            <p class="text-h2 text-foreground font-bold tabular-nums mt-1">
-              Rp {{ biz.balance.toLocaleString('id-ID') }}
+            <p class="text-caption text-muted-foreground truncate">{{ c.category }}</p>
+            <p class="text-h2 font-bold tabular-nums mt-1" :class="c.type === 'income' ? 'text-success' : 'text-destructive'">
+              {{ c.type === 'income' ? '+' : '−' }}{{ formatRupiah(c.total) }}
             </p>
           </div>
         </div>
@@ -152,7 +164,14 @@
               <div class="min-w-0">
                 <p class="text-body text-foreground font-medium truncate">{{ tx.category }}</p>
                 <p class="text-small text-muted-foreground truncate">
-                  {{ tx.displaySource }}<template v-if="tx.notes"> · {{ tx.notes }}</template>
+                  <template v-if="tx.businessName">
+                    <span class="font-medium text-foreground/70">{{ tx.businessName }}</span>
+                    <span class="mx-1">·</span>
+                  </template>
+                  <span v-if="tx.isAuto" class="text-primary">Otomatis · POS</span>
+                  <template v-if="tx.isAuto && tx.notes"> · </template>
+                  <template v-if="tx.notes">{{ tx.notes }}</template>
+                  <template v-if="!tx.isAuto && !tx.notes">Manual</template>
                 </p>
               </div>
             </div>
@@ -194,13 +213,20 @@ definePageMeta({
   permissions: ['finance.view'],
 })
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Plus, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'
+import { formatRupiah } from '~/utils'
 import { Input } from '@/components/ui/input'
 import FilterSheet from '@/components/FilterSheet.vue'
 
 const financeStore = useFinanceStore()
+
+onMounted(() => {
+  financeStore.fetchEntries()
+  financeStore.fetchSummary()
+  financeStore.fetchBusinesses()
+})
 
 const formattedDate = computed(() =>
   new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()),
@@ -278,40 +304,29 @@ function isInPeriod(date: Date): boolean {
 // ─── Combined transactions ────────────────────────────────────────────────────
 interface Transaction {
   key: string
-  id: number
+  id: string
   type: 'income' | 'expense'
   amount: number
   category: string
-  displaySource: string
+  isAuto: boolean
   notes: string
   createdAt: Date
+  businessName: string | null
 }
 
-const allTransactions = computed<Transaction[]>(() => {
-  const exps: Transaction[] = financeStore.expenses.map(e => ({
-    key:           `e-${e.id}`,
-    id:            e.id,
-    type:          'expense',
-    amount:        e.amount,
-    category:      e.category,
-    displaySource: e.business,
-    notes:         e.notes,
-    createdAt:     e.createdAt,
-  }))
-  const incs: Transaction[] = financeStore.incomes.map(i => ({
-    key:           `i-${i.id}`,
-    id:            i.id,
-    type:          'income',
-    amount:        i.amount,
-    category:      i.category,
-    displaySource: i.source,
-    notes:         i.notes,
-    createdAt:     i.createdAt,
-  }))
-  return [...exps, ...incs].sort((a, b) =>
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )
-})
+const allTransactions = computed<Transaction[]>(() =>
+  financeStore.entries.map(e => ({
+    key:          e.id,
+    id:           e.id,
+    type:         e.type,
+    amount:       Number(e.amount),
+    category:     e.category,
+    isAuto:       !!e.source_type && e.source_type !== 'manual',
+    notes:        e.note ?? '',
+    createdAt:    new Date(e.occurred_at),
+    businessName: e.business_name ?? null,
+  })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+)
 
 const periodFilteredTransactions = computed<Transaction[]>(() =>
   allTransactions.value.filter(t => isInPeriod(new Date(t.createdAt))),
@@ -333,9 +348,29 @@ const categoryOptions = computed(() =>
   availableCategories.value.map(cat => ({ value: cat, label: cat })),
 )
 
+// ─── Business filter ──────────────────────────────────────────────────────────
+const activeBusiness = ref('Semua')
+
+const availableBusinessNames = computed(() => {
+  const names = new Set(
+    periodFilteredTransactions.value.map(t => t.businessName).filter(Boolean) as string[],
+  )
+  return ['Semua', ...Array.from(names).sort()]
+})
+
+const businessOptions = computed(() =>
+  availableBusinessNames.value.map(name => ({ value: name, label: name })),
+)
+
 const filteredTransactions = computed<Transaction[]>(() => {
-  if (activeCategory.value === 'Semua') return periodFilteredTransactions.value
-  return periodFilteredTransactions.value.filter(t => t.category === activeCategory.value)
+  let result = periodFilteredTransactions.value
+  if (activeCategory.value !== 'Semua') {
+    result = result.filter(t => t.category === activeCategory.value)
+  }
+  if (activeBusiness.value !== 'Semua') {
+    result = result.filter(t => t.businessName === activeBusiness.value)
+  }
+  return result
 })
 
 // ─── Filtered summaries ─────────────────────────────────────────────────────
@@ -360,6 +395,18 @@ const filteredExpenseCount = computed(() =>
 const activePeriodLabel = computed(() =>
   periodTabs.find(p => p.value === activePeriod.value)?.label ?? 'Semua',
 )
+
+// ─── Category breakdown (from filtered transactions) ─────────────────────────
+const categoryBreakdown = computed(() => {
+  const map = new Map<string, { category: string; type: 'income' | 'expense'; total: number }>()
+  for (const t of filteredTransactions.value) {
+    const key = `${t.type}:${t.category}`
+    const existing = map.get(key)
+    if (existing) existing.total += t.amount
+    else map.set(key, { category: t.category, type: t.type, total: t.amount })
+  }
+  return Array.from(map.values()).sort((a, b) => b.total - a.total)
+})
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(date: Date): string {

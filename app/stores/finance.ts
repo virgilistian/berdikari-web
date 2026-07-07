@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
 export const EXPENSE_CATEGORIES = [
   'Belanja Bahan',
@@ -27,183 +27,97 @@ export const INCOME_CATEGORIES = [
 
 export type IncomeCategory = typeof INCOME_CATEGORIES[number]
 
-export const NON_BUSINESS_SOURCES = [
-  'Gaji',
-  'Freelance',
-  'Dividen',
-  'Sewa Pribadi',
-  'Hadiah',
-  'Lainnya',
-] as const
-
-export type NonBusinessSource = typeof NON_BUSINESS_SOURCES[number]
-
-export interface Business {
+export interface BusinessOption {
   id: string
   name: string
-  balance: number
 }
 
-export interface Expense {
-  id: number
-  amount: number
+export interface FinanceEntry {
+  id: string
+  type: 'income' | 'expense'
+  amount: number | string
   category: string
-  business: string
-  notes: string
-  createdAt: Date
+  note: string | null
+  source_type: string | null
+  source_id: string | null
+  occurred_at: string
+  business_id: string | null
+  business_name: string | null
 }
 
-export interface Income {
-  id: number
-  amount: number
-  category: string
-  sourceType: 'business' | 'personal'
-  source: string
-  notes: string
-  createdAt: Date
+export interface FinanceSummary {
+  from: string
+  to: string
+  total_income: number
+  total_expense: number
+  net: number
+  income_by_category: Record<string, number>
+  expense_by_category: Record<string, number>
 }
 
 export const useFinanceStore = defineStore('finance', () => {
-  const businesses = ref<Business[]>([
-    { id: 'rumah-makan',     name: 'Rumah Makan',    balance: 5_000_000  },
-    { id: 'kolam-renang',    name: 'Kolam Renang',   balance: 8_000_000  },
-    { id: 'coffee-shop',     name: 'Coffee Shop',    balance: 3_500_000  },
-    { id: 'angkringan',      name: 'Angkringan',     balance: 1_200_000  },
-    { id: 'bengkel',         name: 'Bengkel',        balance: 4_800_000  },
-    { id: 'toko-kelontong',  name: 'Toko Kelontong', balance: 2_300_000  },
-    { id: 'toko-emas',       name: 'Toko Emas',      balance: 15_000_000 },
-    { id: 'lapangan-futsal', name: 'Lap. Futsal',    balance: 6_700_000  },
-  ])
+  const entries = ref<FinanceEntry[]>([])
+  const summary = ref<FinanceSummary | null>(null)
+  const businesses = ref<BusinessOption[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  let nextExpenseId = 6
-  let nextIncomeId = 6
-
-  const incomes = ref<Income[]>([
-    {
-      id: 1,
-      amount: 2_500_000,
-      category: 'Penjualan',
-      sourceType: 'business',
-      source: 'Rumah Makan',
-      notes: 'Pendapatan harian',
-      createdAt: new Date(Date.now() - 2 * 3_600_000),
-    },
-    {
-      id: 2,
-      amount: 1_800_000,
-      category: 'Penjualan',
-      sourceType: 'business',
-      source: 'Coffee Shop',
-      notes: '',
-      createdAt: new Date(Date.now() - 4 * 3_600_000),
-    },
-    {
-      id: 3,
-      amount: 3_200_000,
-      category: 'Jasa',
-      sourceType: 'business',
-      source: 'Bengkel',
-      notes: 'Servis 3 kendaraan',
-      createdAt: new Date(Date.now() - 1 * 86_400_000),
-    },
-    {
-      id: 4,
-      amount: 5_000_000,
-      category: 'Penjualan',
-      sourceType: 'business',
-      source: 'Toko Emas',
-      notes: '',
-      createdAt: new Date(Date.now() - 2 * 86_400_000),
-    },
-    {
-      id: 5,
-      amount: 750_000,
-      category: 'Lainnya',
-      sourceType: 'personal',
-      source: 'Gaji',
-      notes: 'Gaji mingguan',
-      createdAt: new Date(Date.now() - 3 * 86_400_000),
-    },
-  ])
-
-  const expenses = ref<Expense[]>([
-    {
-      id: 1,
-      amount: 250_000,
-      category: 'Belanja Bahan',
-      business: 'Rumah Makan',
-      notes: 'Beli sayur dan bumbu',
-      createdAt: new Date(Date.now() - 1 * 3_600_000),
-    },
-    {
-      id: 2,
-      amount: 500_000,
-      category: 'Bayar Listrik',
-      business: 'Kolam Renang',
-      notes: '',
-      createdAt: new Date(Date.now() - 3 * 3_600_000),
-    },
-    {
-      id: 3,
-      amount: 75_000,
-      category: 'BBM',
-      business: 'Bengkel',
-      notes: 'Bensin motor operasional',
-      createdAt: new Date(Date.now() - 5 * 3_600_000),
-    },
-    {
-      id: 4,
-      amount: 1_800_000,
-      category: 'Gaji Karyawan',
-      business: 'Coffee Shop',
-      notes: 'Gaji kasir bulan ini',
-      createdAt: new Date(Date.now() - 2 * 86_400_000),
-    },
-    {
-      id: 5,
-      amount: 350_000,
-      category: 'Perlengkapan',
-      business: 'Toko Kelontong',
-      notes: 'Beli kantong plastik dan struk',
-      createdAt: new Date(Date.now() - 3 * 86_400_000),
-    },
-  ])
-
-  const todayExpenses = computed(() => {
-    const today = new Date().toDateString()
-    return expenses.value.filter(e => new Date(e.createdAt).toDateString() === today)
-  })
-
-  const todayTotal = computed(() =>
-    todayExpenses.value.reduce((sum, e) => sum + e.amount, 0),
-  )
-
-  const todayIncomes = computed(() => {
-    const today = new Date().toDateString()
-    return incomes.value.filter(i => new Date(i.createdAt).toDateString() === today)
-  })
-
-  const todayIncomeTotal = computed(() =>
-    todayIncomes.value.reduce((sum, i) => sum + i.amount, 0),
-  )
-
-  const totalIncome = computed(() =>
-    incomes.value.reduce((sum, i) => sum + i.amount, 0),
-  )
-
-  function addExpense(data: { amount: number; category: string; business: string; notes: string }) {
-    const biz = businesses.value.find(b => b.name === data.business)
-    if (biz) biz.balance = Math.max(0, biz.balance - data.amount)
-    expenses.value.unshift({ id: nextExpenseId++, ...data, createdAt: new Date() })
+  async function fetchEntries(filters: { type?: string; category?: string; from?: string; to?: string; business_id?: string } = {}) {
+    loading.value = true
+    error.value = null
+    try {
+      const api = useApi()
+      const res = await api<{ data: FinanceEntry[] }>('/v1/finance', { query: filters })
+      entries.value = res.data
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Gagal memuat transaksi.'
+      entries.value = []
+    } finally {
+      loading.value = false
+    }
   }
 
-  function addIncome(data: { amount: number; category: string; sourceType: 'business' | 'personal'; source: string; notes: string }) {
-    const biz = data.sourceType === 'business'
-      ? businesses.value.find(b => b.name === data.source)
-      : undefined
-    if (biz) biz.balance = biz.balance + data.amount
-    incomes.value.unshift({ id: nextIncomeId++, ...data, createdAt: new Date() })
+  async function fetchSummary(range: { from?: string; to?: string } = {}) {
+    try {
+      const api = useApi()
+      const res = await api<{ data: FinanceSummary }>('/v1/finance/summary', { query: range })
+      summary.value = res.data
+    } catch {
+      summary.value = null
+    }
   }
 
-  return { businesses, expenses, incomes, todayExpenses, todayTotal, todayIncomes, todayIncomeTotal, totalIncome, addExpense, addIncome }
+  async function fetchBusinesses() {
+    try {
+      const api = useApi()
+      const res = await api<{ data: BusinessOption[] }>('/v1/businesses')
+      businesses.value = res.data
+    } catch {
+      businesses.value = []
+    }
+  }
+
+  async function createEntry(data: {
+    type: 'income' | 'expense'
+    amount: number
+    category: string
+    note?: string
+    business_id?: string
+  }) {
+    const api = useApi()
+    const res = await api<{ data: FinanceEntry }>('/v1/finance', { method: 'POST', body: data })
+    await fetchEntries()
+    return res.data
+  }
+
+  async function deleteEntry(id: string) {
+    const api = useApi()
+    await api(`/v1/finance/${id}`, { method: 'DELETE' })
+    entries.value = entries.value.filter(e => e.id !== id)
+  }
+
+  return {
+    entries, summary, businesses, loading, error,
+    fetchEntries, fetchSummary, fetchBusinesses, createEntry, deleteEntry,
+  }
 })

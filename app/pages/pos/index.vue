@@ -25,9 +25,14 @@
           >
             <ScanLine class="w-4 h-4" :stroke-width="1.75" />
           </button>
-          <div class="text-small text-muted-foreground flex-shrink-0 hidden sm:block">
-            Kasir: <span class="font-medium text-foreground">Admin</span>
-          </div>
+          <NuxtLink
+            to="/pos/orders"
+            class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            aria-label="Daftar pesanan"
+            title="Daftar pesanan"
+          >
+            <ReceiptText class="w-4 h-4" :stroke-width="1.75" />
+          </NuxtLink>
         </div>
 
         <!-- Category pills -->
@@ -54,7 +59,7 @@
           <div v-for="i in 8" :key="i" class="skeleton rounded-xl aspect-[3/4]" />
         </div>
 
-        <!-- Empty search state -->
+        <!-- Empty state -->
         <div
           v-else-if="filteredProducts.length === 0"
           class="flex flex-col items-center justify-center py-16 gap-3 text-center"
@@ -63,10 +68,12 @@
             <PackageSearch class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
           </div>
           <div>
-            <p class="text-h3 text-foreground">Produk tidak ditemukan</p>
-            <p class="text-body text-muted-foreground mt-1">Coba kata kunci yang berbeda</p>
+            <p class="text-h3 text-foreground">{{ products.length === 0 ? 'Belum ada produk' : 'Produk tidak ditemukan' }}</p>
+            <p class="text-body text-muted-foreground mt-1">
+              {{ products.length === 0 ? 'Tambahkan produk di menu Katalog' : 'Coba kata kunci yang berbeda' }}
+            </p>
           </div>
-          <button @click="searchQuery = ''" class="text-body text-primary hover:text-primary/80 min-h-[44px]">Hapus pencarian</button>
+          <button v-if="products.length > 0" @click="searchQuery = ''" class="text-body text-primary hover:text-primary/80 min-h-[44px]">Hapus pencarian</button>
         </div>
 
         <!-- Product grid -->
@@ -85,7 +92,7 @@
             <!-- Info -->
             <div class="px-3 py-2.5 flex flex-col gap-0.5">
               <p class="text-h3 text-foreground line-clamp-2 leading-tight group-hover:text-primary transition-colors">{{ product.name }}</p>
-              <p class="text-body text-primary font-semibold mt-1 tabular-nums">Rp {{ product.price.toLocaleString('id-ID') }}</p>
+              <p class="text-body text-primary font-semibold mt-1 tabular-nums">{{ formatRupiah(product.price) }}</p>
             </div>
           </button>
         </div>
@@ -96,10 +103,14 @@
     <aside class="hidden md:flex w-80 lg:w-96 flex-col border-l border-border bg-surface">
       <CartPanel
         :cart-store="cartStore"
-        :is-submitting="isSubmitting"
+        :is-submitting="cartStore.submitting"
         :checkout-status="checkoutStatus"
-        @checkout="checkout"
-        @reset="checkoutStatus = 'idle'"
+        :last-order="cartStore.lastOrder"
+        @pay="showPayment = true"
+        @paylater="payLater"
+        @hold="holdOrder"
+        @cancel="cancelCart"
+        @reset="resetFlow"
       />
     </aside>
 
@@ -155,13 +166,83 @@
         <div class="flex-1 overflow-y-auto">
           <CartPanel
             :cart-store="cartStore"
-            :is-submitting="isSubmitting"
+            :is-submitting="cartStore.submitting"
             :checkout-status="checkoutStatus"
-            @checkout="checkout"
-            @reset="checkoutStatus = 'idle'; showMobileCart = false"
+            :last-order="cartStore.lastOrder"
+            @pay="showPayment = true"
+            @paylater="payLater"
+            @hold="holdOrder"
+            @cancel="cancelCart"
+            @reset="resetFlow(); showMobileCart = false"
           />
         </div>
         <!-- Mobile safe area padding -->
+        <div style="height: env(safe-area-inset-bottom, 0px)" />
+      </div>
+    </Transition>
+
+    <!-- Payment bottom sheet -->
+    <Transition name="overlay">
+      <div v-if="showPayment" class="fixed inset-0 bg-foreground/40 z-40 backdrop-blur-[2px]" @click="showPayment = false" aria-hidden="true" />
+    </Transition>
+    <Transition name="sheet">
+      <div
+        v-if="showPayment"
+        class="fixed bottom-0 left-0 right-0 md:left-auto md:right-6 md:bottom-6 md:w-96 md:rounded-2xl z-50 bg-surface rounded-t-2xl shadow-elevation-3 flex flex-col"
+        role="dialog" aria-modal="true" aria-label="Pembayaran"
+      >
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 class="text-h2 text-foreground">Pembayaran</h2>
+          <button @click="showPayment = false" class="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" aria-label="Tutup">
+            <X class="w-4 h-4" :stroke-width="1.75" />
+          </button>
+        </div>
+        <div class="p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="text-body text-muted-foreground">Total Tagihan</span>
+            <span class="text-h1 text-primary tabular-nums">{{ formatRupiah(cartStore.totalAmount) }}</span>
+          </div>
+
+          <div>
+            <label class="text-small text-muted-foreground">Uang Diterima</label>
+            <input
+              :value="cashDisplay" @input="onCashInput"
+              type="text" inputmode="numeric"
+              class="mt-1 w-full h-12 px-3 bg-background border border-input rounded-lg text-h2 tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary"
+              placeholder="0"
+            />
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="amt in quickAmounts"
+              :key="amt"
+              @click="cashTendered = amt"
+              class="px-3 h-9 rounded-full bg-secondary text-secondary-foreground text-small font-medium hover:bg-secondary/70"
+            >{{ formatRupiah(amt) }}</button>
+            <button
+              @click="cashTendered = cartStore.totalAmount"
+              class="px-3 h-9 rounded-full bg-primary/10 text-primary text-small font-medium"
+            >Uang Pas</button>
+          </div>
+
+          <div class="flex items-center justify-between" v-if="cashTendered">
+            <span class="text-body text-muted-foreground">Kembalian</span>
+            <span class="text-h2 tabular-nums" :class="changeDue >= 0 ? 'text-success' : 'text-destructive'">
+              {{ formatRupiah(Math.max(0, changeDue)) }}
+            </span>
+          </div>
+
+          <button
+            :disabled="cartStore.submitting || !cashTendered || changeDue < 0"
+            @click="confirmPayment"
+            class="w-full h-12 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition-colors active:scale-[0.98]"
+            :class="(cartStore.submitting || !cashTendered || changeDue < 0) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90'"
+          >
+            <Loader2 v-if="cartStore.submitting" class="w-4 h-4 animate-spin" :stroke-width="2" />
+            {{ cartStore.submitting ? 'Memproses...' : 'Konfirmasi Pembayaran' }}
+          </button>
+        </div>
         <div style="height: env(safe-area-inset-bottom, 0px)" />
       </div>
     </Transition>
@@ -170,8 +251,15 @@
 
 <!-- CartPanel sub-component defined inline -->
 <script lang="ts">
-import { defineComponent, h } from 'vue'
-import { Minus, Plus, Trash2, CheckCircle2, AlertCircle, Loader2 } from '@lucide/vue'
+import { defineComponent, h, ref as vRef } from 'vue'
+import { Minus, Plus, CheckCircle2, AlertCircle, Clock, Save, User } from '@lucide/vue'
+
+function receiptRow(label: string, value: string, valueClass = 'text-foreground') {
+  return h('div', { class: 'flex items-center justify-between' }, [
+    h('span', { class: 'text-muted-foreground' }, label),
+    h('span', { class: `tabular-nums font-medium ${valueClass}` }, value),
+  ])
+}
 
 export const CartPanel = defineComponent({
   name: 'CartPanel',
@@ -179,21 +267,31 @@ export const CartPanel = defineComponent({
     cartStore: { type: Object, required: true },
     isSubmitting: { type: Boolean, default: false },
     checkoutStatus: { type: String, default: 'idle' },
+    lastOrder: { type: Object, default: null },
   },
-  emits: ['checkout', 'reset'],
+  emits: ['pay', 'paylater', 'hold', 'cancel', 'reset'],
   setup(props, { emit }) {
+    const confirmCancel = vRef(false)
     return () => {
-      const { cartStore, isSubmitting, checkoutStatus } = props
+      const { cartStore, isSubmitting, checkoutStatus, lastOrder } = props
 
-      // Success state
-      if (checkoutStatus === 'success') {
+      // Receipt / success state
+      if (checkoutStatus === 'success' && lastOrder) {
+        const paid = lastOrder.payment_status === 'paid'
+        const held = lastOrder.status === 'open'
         return h('div', { class: 'flex flex-col items-center justify-center h-full gap-4 p-8 text-center' }, [
-          h('div', { class: 'w-14 h-14 rounded-full bg-success/10 flex items-center justify-center' },
-            h(CheckCircle2, { class: 'w-7 h-7 text-success', strokeWidth: 1.75 })
+          h('div', { class: `w-14 h-14 rounded-full flex items-center justify-center ${paid ? 'bg-success/10' : 'bg-warning/10'}` },
+            h(paid ? CheckCircle2 : Clock, { class: paid ? 'w-7 h-7 text-success' : 'w-7 h-7 text-warning', strokeWidth: 1.75 })
           ),
           h('div', {}, [
-            h('p', { class: 'text-h2 text-foreground' }, 'Pembayaran Berhasil'),
-            h('p', { class: 'text-body text-muted-foreground mt-1' }, 'Transaksi telah tersimpan'),
+            h('p', { class: 'text-h2 text-foreground' }, held ? 'Pesanan Tersimpan' : (paid ? 'Pembayaran Berhasil' : 'Pesanan Belum Lunas')),
+            h('p', { class: 'text-small text-muted-foreground mt-1' }, `No. ${lastOrder.order_no ?? '-'}`),
+          ]),
+          h('div', { class: 'w-full max-w-[16rem] space-y-1 text-body' }, [
+            receiptRow('Total', formatRupiah(lastOrder.total_amount)),
+            receiptRow('Dibayar', formatRupiah(lastOrder.paid_amount)),
+            lastOrder.balance_due > 0 ? receiptRow('Sisa (Piutang)', formatRupiah(lastOrder.balance_due), 'text-warning') : null,
+            Number(lastOrder.change_amount) > 0 ? receiptRow('Kembalian', formatRupiah(lastOrder.change_amount), 'text-success') : null,
           ]),
           h('button', {
             class: 'text-body text-primary font-medium min-h-[44px] hover:text-primary/80 transition-colors',
@@ -237,7 +335,7 @@ export const CartPanel = defineComponent({
                 }, [
                   h('div', { class: 'flex-1 min-w-0' }, [
                     h('p', { class: 'text-h3 text-foreground truncate' }, item.name),
-                    h('p', { class: 'text-small text-muted-foreground tabular-nums' }, `Rp ${item.unit_price.toLocaleString('id-ID')}`),
+                    h('p', { class: 'text-small text-muted-foreground tabular-nums' }, formatRupiah(item.unit_price)),
                   ]),
                   h('div', { class: 'flex items-center gap-1 flex-shrink-0' }, [
                     h('button', {
@@ -258,9 +356,20 @@ export const CartPanel = defineComponent({
 
         // Footer
         h('div', { class: 'p-4 border-t border-border flex-shrink-0 space-y-3 bg-surface' }, [
+          // Customer name / table number
+          h('div', { class: 'relative' }, [
+            h(User, { class: 'absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none', strokeWidth: 1.75 }),
+            h('input', {
+              type: 'text',
+              value: cartStore.customerName,
+              placeholder: 'Nama / No. Meja (opsional)',
+              class: 'w-full h-9 pl-8 pr-3 bg-background border border-input rounded-lg text-small text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors',
+              onInput: (e: Event) => { cartStore.customerName = (e.target as HTMLInputElement).value },
+            }),
+          ]),
           h('div', { class: 'flex items-center justify-between' }, [
             h('span', { class: 'text-h3 text-muted-foreground' }, 'Total'),
-            h('span', { class: 'text-display text-primary tabular-nums' }, `Rp ${cartStore.totalAmount.toLocaleString('id-ID')}`),
+            h('span', { class: 'text-display text-primary tabular-nums' }, formatRupiah(cartStore.totalAmount)),
           ]),
           h('button', {
             class: `w-full h-12 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition-colors active:scale-[0.98] ${
@@ -269,11 +378,41 @@ export const CartPanel = defineComponent({
                 : 'bg-primary text-primary-foreground hover:bg-primary/90'
             }`,
             disabled: cartStore.items.length === 0 || isSubmitting,
-            onClick: () => emit('checkout'),
-          }, [
-            isSubmitting ? h(Loader2, { class: 'w-4 h-4 animate-spin', strokeWidth: 2 }) : null,
-            isSubmitting ? 'Memproses...' : 'Bayar Sekarang',
+            onClick: () => emit('pay'),
+          }, 'Bayar Sekarang'),
+          h('div', { class: 'grid grid-cols-2 gap-2' }, [
+            h('button', {
+              class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
+              disabled: cartStore.items.length === 0 || isSubmitting,
+              onClick: () => emit('paylater'),
+            }, [h(Clock, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Bayar Nanti']),
+            h('button', {
+              class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
+              disabled: cartStore.items.length === 0 || isSubmitting,
+              onClick: () => emit('hold'),
+            }, [h(Save, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Simpan']),
           ]),
+          cartStore.items.length > 0
+            ? (confirmCancel.value
+              ? h('div', { class: 'flex items-center justify-between gap-2 pt-1' }, [
+                  h('span', { class: 'text-small text-muted-foreground' }, 'Yakin batalkan pesanan ini?'),
+                  h('div', { class: 'flex gap-2' }, [
+                    h('button', {
+                      class: 'text-small font-medium text-destructive hover:text-destructive/80 transition-colors min-h-[36px] px-2',
+                      onClick: () => { confirmCancel.value = false; emit('cancel') },
+                    }, 'Ya, batalkan'),
+                    h('button', {
+                      class: 'text-small text-muted-foreground hover:text-foreground transition-colors min-h-[36px] px-2',
+                      onClick: () => { confirmCancel.value = false },
+                    }, 'Tidak'),
+                  ]),
+                ])
+              : h('button', {
+                  class: 'w-full text-small text-muted-foreground hover:text-destructive transition-colors min-h-[36px]',
+                  onClick: () => { confirmCancel.value = true },
+                }, 'Batalkan Pesanan')
+            )
+            : null,
         ]),
       ])
     }
@@ -288,41 +427,36 @@ definePageMeta({
 })
 
 import { ref, computed, onMounted } from 'vue'
-import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine } from '@lucide/vue'
+import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
+import { formatRupiah } from '~/utils'
 import PlateScanSheet from '~/components/PlateScanSheet.vue'
 
 const cartStore = useCartStore()
-const products = ref<any[]>([])
+const api = useApi()
+
+interface ApiProduct { id: string; name: string; price: number; category?: { name?: string } | null }
+
+const products = ref<ApiProduct[]>([])
 const loading = ref(true)
-const isSubmitting = ref(false)
 const showMobileCart = ref(false)
 const showPlateScan = ref(false)
+const showPayment = ref(false)
 const checkoutStatus = ref<'idle' | 'success' | 'error'>('idle')
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
+const cashTendered = ref<number | null>(null)
+const { display: cashDisplay, onInput: onCashInput } = useRupiahInput(cashTendered)
 
-const dummyBusinessId = '123e4567-e89b-12d3-a456-426614174000'
-
-const allProducts = [
-  { id: 'p1',  name: 'Nasi Kucing Teri',   price: 3000,  category: 'Nasi' },
-  { id: 'p2',  name: 'Nasi Kucing Tempe',  price: 3000,  category: 'Nasi' },
-  { id: 'p3',  name: 'Sate Usus',          price: 2000,  category: 'Sate' },
-  { id: 'p4',  name: 'Sate Telur Puyuh',   price: 3500,  category: 'Sate' },
-  { id: 'p5',  name: 'Sate Ayam',          price: 3000,  category: 'Sate' },
-  { id: 'p6',  name: 'Gorengan Tempe',     price: 1000,  category: 'Gorengan' },
-  { id: 'p7',  name: 'Gorengan Tahu',      price: 1000,  category: 'Gorengan' },
-  { id: 'p8',  name: 'Es Teh Manis',       price: 3000,  category: 'Minuman' },
-  { id: 'p9',  name: 'Kopi Hitam',         price: 4000,  category: 'Minuman' },
-  { id: 'p10', name: 'Susu Jahe',          price: 5000,  category: 'Minuman' },
-]
-
-const categories = computed(() => ['Semua', ...new Set(allProducts.map(p => p.category))])
+const categories = computed(() => {
+  const names = products.value.map(p => p.category?.name).filter(Boolean) as string[]
+  return ['Semua', ...Array.from(new Set(names))]
+})
 
 const filteredProducts = computed(() => {
   let list = activeCategory.value === 'Semua'
-    ? allProducts
-    : allProducts.filter(p => p.category === activeCategory.value)
+    ? products.value
+    : products.value.filter(p => p.category?.name === activeCategory.value)
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     list = list.filter(p => p.name.toLowerCase().includes(q))
@@ -330,45 +464,69 @@ const filteredProducts = computed(() => {
   return list
 })
 
-onMounted(() => {
-  setTimeout(() => {
-    products.value = allProducts
-    loading.value = false
-  }, 600)
+const changeDue = computed(() => (cashTendered.value ?? 0) - cartStore.totalAmount)
+
+const quickAmounts = computed(() => {
+  const total = cartStore.totalAmount
+  const bases = [5000, 10000, 20000, 50000, 100000]
+  return bases.filter(b => b >= total).slice(0, 4)
 })
 
-const addScannedItems = (items: { product: { id: string, name: string, price: number }, quantity: number }[]) => {
-  for (const { product, quantity } of items) {
-    for (let i = 0; i < quantity; i++) {
-      cartStore.addToCart(product)
-    }
+async function loadProducts() {
+  loading.value = true
+  try {
+    const res = await api<{ data: ApiProduct[] }>('/v1/catalog/products', { query: { active_only: 1 } })
+    products.value = res.data
+  } catch {
+    products.value = []
+  } finally {
+    loading.value = false
   }
 }
 
-const checkout = async () => {
-  if (cartStore.items.length === 0) return
-  isSubmitting.value = true
-  checkoutStatus.value = 'idle'
+onMounted(loadProducts)
+
+const addScannedItems = (items: { product: { id: string, name: string, price: number }, quantity: number }[]) => {
+  for (const { product, quantity } of items) {
+    for (let i = 0; i < quantity; i++) cartStore.addToCart(product)
+  }
+}
+
+async function confirmPayment() {
   try {
-    await $fetch('/api/v1/sales/checkout', {
-      method: 'POST',
-      body: {
-        business_id: dummyBusinessId,
-        items: cartStore.items.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        })),
-      },
-    })
-    cartStore.clearCart()
+    await cartStore.submitOrder({ action: 'complete', payment: cashTendered.value ?? 0, method: 'cash' })
+    showPayment.value = false
     checkoutStatus.value = 'success'
   } catch {
-    // Simulate success in dev (API not yet reachable from frontend)
-    cartStore.clearCart()
-    checkoutStatus.value = 'success'
-  } finally {
-    isSubmitting.value = false
+    checkoutStatus.value = 'error'
   }
+}
+
+function cancelCart() {
+  cartStore.clearCart()
+}
+
+async function payLater() {
+  try {
+    await cartStore.submitOrder({ action: 'complete' })
+    checkoutStatus.value = 'success'
+  } catch {
+    checkoutStatus.value = 'error'
+  }
+}
+
+async function holdOrder() {
+  try {
+    await cartStore.submitOrder({ action: 'hold' })
+    checkoutStatus.value = 'success'
+  } catch {
+    checkoutStatus.value = 'error'
+  }
+}
+
+function resetFlow() {
+  checkoutStatus.value = 'idle'
+  cashTendered.value = null
+  cartStore.lastOrder = null
 }
 </script>
