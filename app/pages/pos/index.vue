@@ -1,9 +1,38 @@
 <template>
-  <!-- POS layout: full-screen on mobile, split on desktop -->
-  <div class="flex md:h-[calc(100vh-3.5rem)] h-[calc(100vh-7.5rem)] bg-background overflow-hidden">
+  <div v-if="initializing || shiftStore.loading" class="flex items-center justify-center h-[calc(100vh-7.5rem)]">
+    <Loader2 class="w-8 h-8 animate-spin text-primary" />
+  </div>
+
+  <!-- POS layout: full-screen on mobile, split on desktop. Always usable, shift or no shift. -->
+  <div v-else class="flex md:h-[calc(100vh-3.5rem)] h-[calc(100vh-7.5rem)] bg-background overflow-hidden">
 
     <!-- Left: Product panel -->
     <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Shift reminder (dismissible, not a blocker) -->
+      <div
+        v-if="showShiftReminder"
+        class="px-4 py-2 border-b border-border flex items-center gap-2 flex-shrink-0 bg-warning/10"
+        role="status"
+      >
+        <Clock class="w-4 h-4 text-warning flex-shrink-0" :stroke-width="1.75" />
+        <p class="text-small flex-1 min-w-0 text-warning">
+          Shift belum dibuka — transaksi tetap bisa diproses.
+        </p>
+        <button
+          @click="showOpenForm = true"
+          class="text-small text-warning font-semibold min-h-[36px] px-2 hover:text-warning/80 transition-colors flex-shrink-0"
+        >
+          Buka Shift
+        </button>
+        <button
+          @click="dismissShiftReminder"
+          class="w-8 h-8 flex items-center justify-center rounded-lg text-warning hover:bg-warning/10 transition-colors flex-shrink-0"
+          aria-label="Tutup pengingat"
+        >
+          <X class="w-4 h-4" :stroke-width="1.75" />
+        </button>
+      </div>
+
       <!-- Offline / sync status banner -->
       <div
         v-if="cartStore.isOffline || cartStore.queuedCount > 0 || failedOrders.length > 0"
@@ -52,6 +81,19 @@
               aria-label="Cari produk"
             />
           </div>
+          <button
+            @click="shiftStore.hasActiveShift ? navigateTo('/pos/shift') : (showOpenForm = true)"
+            class="relative flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            :aria-label="shiftStore.hasActiveShift ? 'Shift aktif — lihat ringkasan shift' : 'Shift belum dibuka — buka shift'"
+            :title="shiftStore.hasActiveShift ? 'Shift aktif' : 'Shift belum dibuka'"
+          >
+            <Clock class="w-4 h-4" :stroke-width="1.75" />
+            <span
+              class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+              :class="shiftStore.hasActiveShift ? 'bg-success animate-pulse' : 'bg-warning'"
+              aria-hidden="true"
+            />
+          </button>
           <button
             @click="showPlateScan = true"
             :disabled="cartStore.isOffline"
@@ -282,6 +324,52 @@
         <div style="height: env(safe-area-inset-bottom, 0px)" />
       </div>
     </Transition>
+
+    <!-- Open shift drawer (reachable from the reminder banner / header status chip, not a gate) -->
+    <DrawerRoot v-model:open="showOpenForm">
+      <DrawerContent aria-label="Buka shift">
+        <DrawerHeader>
+          <DrawerTitle>Buka Shift Kasir</DrawerTitle>
+        </DrawerHeader>
+        <div class="flex-1 overflow-y-auto px-5 pb-4 space-y-4 text-left">
+          <p class="text-small text-muted-foreground">
+            Masukkan jumlah uang kas awal yang tersedia di laci kasir.
+          </p>
+          <div>
+            <label for="opening-cash" class="text-small text-muted-foreground block mb-1">
+              Kas Awal <span class="text-destructive">*</span>
+            </label>
+            <Input
+              id="opening-cash"
+              v-model.number="openForm.opening_cash"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              step="1000"
+              class="h-11"
+              placeholder="0"
+            />
+          </div>
+          <p v-if="shiftStore.error" class="text-small text-destructive" role="alert">{{ shiftStore.error }}</p>
+        </div>
+        <DrawerFooter>
+          <div class="flex w-full gap-2">
+            <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'flex-1')" @click="showOpenForm = false">
+              Batal
+            </button>
+            <button
+              type="button"
+              :class="cn(buttonVariants(), 'flex-1')"
+              :disabled="shiftStore.loading"
+              @click="doOpenShift"
+            >
+              <Loader2 v-if="shiftStore.loading" class="w-4 h-4 animate-spin mr-1" />
+              Buka Shift
+            </button>
+          </div>
+        </DrawerFooter>
+      </DrawerContent>
+    </DrawerRoot>
   </div>
 </template>
 
@@ -465,13 +553,39 @@ definePageMeta({
 })
 
 import { ref, computed, onMounted } from 'vue'
-import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText, RefreshCw, WifiOff } from '@lucide/vue'
+import { useLocalStorage } from '@vueuse/core'
+import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText, RefreshCw, WifiOff, Clock } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
-import { formatRupiah } from '~/utils'
+import { useShiftStore } from '~/stores/shift'
+import { formatRupiah, cn } from '~/utils'
+import { buttonVariants } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
+import { DrawerRoot, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '~/components/ui/drawer'
 import PlateScanSheet from '~/components/PlateScanSheet.vue'
 
 const cartStore = useCartStore()
+const shiftStore = useShiftStore()
 const api = useApi()
+
+const showOpenForm = ref(false)
+const openForm = ref({ opening_cash: 0 })
+
+async function doOpenShift() {
+  try {
+    await shiftStore.openShift(openForm.value.opening_cash ?? 0)
+    showOpenForm.value = false
+    openForm.value = { opening_cash: 0 }
+  } catch { /* error handled by store */ }
+}
+
+/** Shift reminder: dismissible for the rest of the day, resurfaces next day if still no shift. */
+const shiftReminderDismissedDate = useLocalStorage('berdikari_shift_reminder_dismissed', '')
+const showShiftReminder = computed(() =>
+  !shiftStore.hasActiveShift && shiftReminderDismissedDate.value !== new Date().toDateString()
+)
+function dismissShiftReminder() {
+  shiftReminderDismissedDate.value = new Date().toDateString()
+}
 
 interface ApiProduct { id: string; name: string; price: number; category?: { name?: string } | null }
 
@@ -528,7 +642,15 @@ async function loadProducts() {
   }
 }
 
-onMounted(loadProducts)
+const initializing = ref(true)
+
+onMounted(async () => {
+  await Promise.all([
+    loadProducts(),
+    shiftStore.fetchActive()
+  ])
+  initializing.value = false
+})
 
 const addScannedItems = (items: { product: { id: string, name: string, price: number }, quantity: number }[]) => {
   for (const { product, quantity } of items) {
