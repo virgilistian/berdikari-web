@@ -52,7 +52,7 @@ export const useOrdersStore = defineStore('orders', () => {
       })
       orders.value = res.data
     } catch (e: any) {
-      error.value = e?.data?.message ?? 'Gagal memuat pesanan.'
+      error.value = e?.data?.message ?? 'Daftar pesanan belum bisa dimuat. Coba muat ulang halaman ini, ya.'
       orders.value = []
     } finally {
       loading.value = false

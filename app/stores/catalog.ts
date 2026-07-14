@@ -49,7 +49,7 @@ export const useCatalogStore = defineStore('catalog', () => {
       products.value = prod.data
       categories.value = cat.data
     } catch (e: any) {
-      error.value = e?.data?.message ?? 'Gagal memuat produk.'
+      error.value = e?.data?.message ?? 'Produk belum bisa dimuat. Coba lagi sebentar, ya.'
       products.value = []
     } finally {
       loading.value = false
@@ -58,6 +58,7 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   async function saveProduct(form: ProductForm): Promise<CatalogProduct> {
     const api = useApi()
+    error.value = null
     const body = {
       name: form.name,
       category_id: form.category_id,
@@ -66,27 +67,44 @@ export const useCatalogStore = defineStore('catalog', () => {
       sku: form.sku ?? null,
       is_active: form.is_active,
     }
-    const res = form.id
-      ? await api<{ data: CatalogProduct }>(`/v1/catalog/products/${form.id}`, { method: 'PUT', body })
-      : await api<{ data: CatalogProduct }>('/v1/catalog/products', { method: 'POST', body })
-    await fetchProducts()
-    return res.data
+    try {
+      const res = form.id
+        ? await api<{ data: CatalogProduct }>(`/v1/catalog/products/${form.id}`, { method: 'PUT', body })
+        : await api<{ data: CatalogProduct }>('/v1/catalog/products', { method: 'POST', body })
+      await fetchProducts()
+      return res.data
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Produk belum bisa disimpan. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   async function deleteProduct(id: string) {
     const api = useApi()
-    await api(`/v1/catalog/products/${id}`, { method: 'DELETE' })
-    await fetchProducts()
+    error.value = null
+    try {
+      await api(`/v1/catalog/products/${id}`, { method: 'DELETE' })
+      await fetchProducts()
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Produk belum bisa dihapus. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   async function createCategory(name: string): Promise<CatalogCategory> {
     const api = useApi()
-    const res = await api<{ data: CatalogCategory }>('/v1/catalog/categories', {
-      method: 'POST',
-      body: { name },
-    })
-    categories.value.push(res.data)
-    return res.data
+    error.value = null
+    try {
+      const res = await api<{ data: CatalogCategory }>('/v1/catalog/categories', {
+        method: 'POST',
+        body: { name },
+      })
+      categories.value.push(res.data)
+      return res.data
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Kategori belum bisa disimpan. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   return {

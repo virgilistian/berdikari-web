@@ -228,7 +228,7 @@ export const useCartStore = defineStore('cart', () => {
                         // visible as failed instead of retrying forever.
                         pendingOrders.value = pendingOrders.value.map(o =>
                             o.client_uuid === pending.client_uuid
-                                ? { ...o, status: 'failed' as const, error: err?.data?.message ?? 'Ditolak server' }
+                                ? { ...o, status: 'failed' as const, error: err?.data?.message ?? 'Transaksi ini ditolak server, coba periksa lagi datanya' }
                                 : o);
                     } else {
                         // Still offline — stop and retry on the next reconnect.

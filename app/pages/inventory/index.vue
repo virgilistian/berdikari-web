@@ -42,21 +42,19 @@
 
     <!-- ── STATE 1: No stock opened yet → Empty state ── -->
     <template v-else-if="!store.hasStocks">
-      <div class="flex flex-col items-center justify-center py-20 gap-4 text-center">
-        <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
-          <Boxes class="w-7 h-7 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <div>
-          <p class="text-h3 text-foreground">Stok hari ini belum dibuka</p>
-          <p class="text-body text-muted-foreground mt-1">Catat stok awal sebelum toko buka</p>
-        </div>
+      <EmptyState
+        :icon="Boxes"
+        title="Stok Hari Ini Belum Dibuka"
+        description="Catat stok awal sebelum toko buka"
+        class="py-20"
+      >
         <NuxtLink to="/inventory/new">
           <button class="flex items-center gap-2 bg-primary text-primary-foreground px-5 h-11 rounded-lg text-body font-medium hover:bg-primary/90 active:bg-primary/80 transition-colors">
             <Plus class="w-4 h-4" :stroke-width="1.75" />
             Buka Stok Hari Ini
           </button>
         </NuxtLink>
-      </div>
+      </EmptyState>
     </template>
 
     <!-- ── STATE 2: Stock open → live table ── -->
@@ -87,7 +85,7 @@
           </tbody>
         </table>
       </div>
-      <p v-if="store.error" class="text-small text-destructive">{{ store.error }}</p>
+      <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
     </template>
 
     <!-- ── STATE 3: Day closed → EOD recap ── -->
@@ -144,6 +142,8 @@ definePageMeta({
 import { onMounted, computed } from 'vue'
 import { Plus, Loader2, LogOut, CheckCircle2, Boxes, ChevronRight } from '@lucide/vue'
 import { useDailyStockStore, type DailyStockItem } from '~/stores/dailyStock'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 
 const store = useDailyStockStore()
 
@@ -162,7 +162,11 @@ const totalSold = computed(() => store.stocks.reduce((sum, s) => sum + s.sold_qt
 const totalClosing = computed(() => store.stocks.reduce((sum, s) => sum + (s.closing_qty ?? 0), 0))
 
 async function handleCloseDay() {
-  await store.closeDay()
+  try {
+    await store.closeDay()
+  } catch {
+    // error shown via InlineAlert above
+  }
 }
 
 onMounted(() => store.fetchToday())

@@ -46,20 +46,14 @@
     </div>
 
     <!-- Empty state -->
-    <div
+    <EmptyState
       v-else-if="filteredEmployees.length === 0"
-      class="bg-surface rounded-xl border border-border p-10 flex flex-col items-center text-center gap-3"
-    >
-      <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-        <Users class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <div>
-        <p class="text-h3 text-foreground">{{ hr.employees.length === 0 ? 'Belum ada karyawan' : 'Karyawan tidak ditemukan' }}</p>
-        <p class="text-body text-muted-foreground mt-1">
-          {{ hr.employees.length === 0 ? 'Tambahkan karyawan pertama untuk mulai mengelola tim Anda' : 'Coba kata kunci atau filter lain' }}
-        </p>
-      </div>
-    </div>
+      :icon="Users"
+      size="compact"
+      :title="hr.employees.length === 0 ? 'Belum Ada Karyawan' : 'Karyawan Tidak Ditemukan'"
+      :description="hr.employees.length === 0 ? 'Tambahkan karyawan pertama untuk mulai mengelola tim Anda.' : 'Coba kata kunci atau filter lain, ya.'"
+      class="bg-surface border border-border rounded-xl p-10"
+    />
 
     <!-- Employee list -->
     <div
@@ -140,7 +134,7 @@
               </button>
             </div>
           </div>
-          <p v-if="formError" class="text-small text-destructive" role="alert">{{ formError }}</p>
+          <InlineAlert v-if="formError" variant="destructive">{{ formError }}</InlineAlert>
         </form>
         <DrawerFooter>
           <div class="flex w-full gap-2">
@@ -160,6 +154,17 @@
         </DrawerFooter>
       </DrawerContent>
     </DrawerRoot>
+
+    <!-- Deactivate confirmation -->
+    <ConfirmDialog
+      v-model:open="confirmDeactivate"
+      title="Nonaktifkan Karyawan Ini?"
+      description="Karyawan tidak akan muncul sebagai aktif lagi, tapi Anda tetap bisa mengaktifkannya kembali kapan saja."
+      confirm-label="Ya, Nonaktifkan"
+      cancel-label="Batal"
+      :loading="saving"
+      @confirm="doSave"
+    />
   </div>
 </template>
 
@@ -179,6 +184,9 @@ import { buttonVariants } from '@/components/ui/button'
 import {
   DrawerContent, DrawerFooter, DrawerHeader, DrawerRoot, DrawerTitle,
 } from '@/components/ui/drawer'
+import { ConfirmDialog } from '~/components/ui/confirm-dialog'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { cn } from '@/utils'
 import { useAuthStore } from '~/stores/auth'
 import { useHrStore, type Employee } from '~/stores/hr'
@@ -187,6 +195,7 @@ useHead({ title: 'Karyawan — Berdikari' })
 
 const auth = useAuthStore()
 const hr = useHrStore()
+const toast = useToast()
 
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
@@ -214,6 +223,7 @@ const showForm = ref(false)
 const editing = ref<Employee | null>(null)
 const saving = ref(false)
 const formError = ref('')
+const confirmDeactivate = ref(false)
 const form = ref({
   name: '',
   position: '',
@@ -244,10 +254,20 @@ function openEdit(employee: Employee) {
   showForm.value = true
 }
 
-async function save() {
+function save() {
   if (!form.value.name.trim() || saving.value) return
+  if (editing.value && editing.value.status === 'active' && form.value.status === 'inactive') {
+    showForm.value = false
+    confirmDeactivate.value = true
+    return
+  }
+  doSave()
+}
+
+async function doSave() {
   saving.value = true
   formError.value = ''
+  const wasActive = editing.value?.status === 'active'
   const payload = {
     name: form.value.name.trim(),
     position: form.value.position || null,
@@ -259,14 +279,28 @@ async function save() {
   try {
     if (editing.value) {
       await hr.updateEmployee(editing.value.id, payload as Partial<Employee>)
+      if (payload.status === 'inactive') {
+        toast.success('Karyawan dinonaktifkan')
+      } else if (payload.status === 'active' && !wasActive) {
+        toast.success('Karyawan diaktifkan kembali')
+      } else {
+        toast.success('Data karyawan diperbarui')
+      }
     } else {
       await hr.createEmployee(payload as Partial<Employee>)
+      toast.success('Karyawan ditambahkan')
     }
     showForm.value = false
   } catch (err: any) {
-    formError.value = err?.data?.message ?? 'Gagal menyimpan. Periksa data dan coba lagi.'
+    const message = err?.data?.message ?? 'Data karyawan belum bisa disimpan. Periksa data dan coba lagi, ya.'
+    if (confirmDeactivate.value) {
+      toast.error('Karyawan belum bisa dinonaktifkan', message)
+    } else {
+      formError.value = message
+    }
   } finally {
     saving.value = false
+    confirmDeactivate.value = false
   }
 }
 

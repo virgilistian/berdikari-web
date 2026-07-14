@@ -10,14 +10,7 @@
       <!-- Form -->
       <form @submit.prevent="handleLogin" class="px-6 py-5 space-y-4">
         <!-- Error state -->
-        <div
-          v-if="loginError"
-          class="flex items-start gap-2 px-3 py-2.5 bg-destructive/8 border border-destructive/20 rounded-lg"
-          role="alert"
-        >
-          <AlertCircle class="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" :stroke-width="1.75" />
-          <p class="text-body text-destructive">{{ loginError }}</p>
-        </div>
+        <InlineAlert v-if="loginError" variant="destructive">{{ loginError }}</InlineAlert>
 
         <div class="space-y-1.5">
           <label for="email" class="text-h3 text-foreground">Email</label>
@@ -77,9 +70,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertCircle, Eye, EyeOff, Loader2 } from '@lucide/vue'
+import { Eye, EyeOff, Loader2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
@@ -100,7 +94,7 @@ const handleLogin = async () => {
     router.push('/')
   } catch (error: any) {
     loginError.value =
-      error?.data?.message || 'Email atau password salah. Silakan coba lagi.'
+      error?.data?.message || 'Belum bisa masuk. Periksa lagi email dan kata sandinya, ya.'
   } finally {
     isLoading.value = false
   }

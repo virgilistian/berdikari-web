@@ -43,11 +43,32 @@ export interface HrSummary {
   pending_leaves: number
 }
 
+export interface LeaveQuota {
+  id: string
+  employee_id: string
+  year: number
+  type: 'annual' | 'sick' | 'other'
+  quota_days: number
+  used_days: number
+  pending_days: number
+  carryover_days: number
+  remaining_days: number
+  total_available: number
+  expires_at: string | null
+}
+
+export interface LeaveQuotaSummary {
+  quota: LeaveQuota
+  approved_history: LeaveRequest[]
+  pending_requests: LeaveRequest[]
+}
+
 export const useHrStore = defineStore('hr', () => {
   const employees = ref<Employee[]>([])
   const attendance = ref<Attendance[]>([])
   const myToday = ref<Attendance | null>(null)
   const myHistory = ref<Attendance[]>([])
+  const myQuota = ref<LeaveQuotaSummary | null>(null)
   const leaves = ref<LeaveRequest[]>([])
   const myLeaves = ref<LeaveRequest[]>([])
   const loading = ref(false)
@@ -128,6 +149,18 @@ export const useHrStore = defineStore('hr', () => {
     myLeaves.value = res.data
   }
 
+  async function fetchMyQuota(year?: number) {
+    const api = useApi()
+    try {
+      const res = await api<{ data: LeaveQuotaSummary }>('/v1/hr/leaves/quota', {
+        query: year ? { year } : {},
+      })
+      myQuota.value = res.data
+    } catch {
+      myQuota.value = null
+    }
+  }
+
   async function submitLeave(data: { type: string, start_date: string, end_date: string, reason?: string }): Promise<LeaveRequest> {
     const api = useApi()
     const res = await api<{ data: LeaveRequest }>('/v1/hr/leaves', { method: 'POST', body: data })
@@ -160,6 +193,7 @@ export const useHrStore = defineStore('hr', () => {
     myHistory,
     leaves,
     myLeaves,
+    myQuota,
     loading,
     fetchEmployees,
     createEmployee,
@@ -170,6 +204,7 @@ export const useHrStore = defineStore('hr', () => {
     clockOut,
     fetchLeaves,
     fetchMyLeaves,
+    fetchMyQuota,
     submitLeave,
     decideLeave,
     fetchSummary,

@@ -29,25 +29,8 @@
 
       <!-- Form -->
       <form @submit.prevent="handleSave" class="px-5 py-5 space-y-4">
-        <!-- Success alert -->
-        <div
-          v-if="successMsg"
-          class="flex items-center gap-2 px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg"
-          role="status"
-        >
-          <CheckCircle2 class="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" :stroke-width="1.75" />
-          <p class="text-body text-green-700 dark:text-green-400">{{ successMsg }}</p>
-        </div>
-
         <!-- Error alert -->
-        <div
-          v-if="errorMsg"
-          class="flex items-start gap-2 px-3 py-2.5 bg-destructive/8 border border-destructive/20 rounded-lg"
-          role="alert"
-        >
-          <AlertCircle class="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" :stroke-width="1.75" />
-          <p class="text-body text-destructive">{{ errorMsg }}</p>
-        </div>
+        <InlineAlert v-if="errorMsg" variant="destructive">{{ errorMsg }}</InlineAlert>
 
         <!-- Name -->
         <div class="space-y-1.5">
@@ -94,9 +77,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from '@lucide/vue'
+import { ArrowLeft, Loader2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({
@@ -107,11 +91,11 @@ definePageMeta({
 useHead({ title: 'Profil Saya — Berdikari' })
 
 const auth = useAuthStore()
+const toast = useToast()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 const form = reactive({ name: '', email: '' })
 const saving = ref(false)
-const successMsg = ref('')
 const errorMsg = ref('')
 
 onMounted(() => {
@@ -154,17 +138,16 @@ const initials = computed(() => {
 // ── Save ──────────────────────────────────────────────────────────────────────
 async function handleSave() {
   saving.value = true
-  successMsg.value = ''
   errorMsg.value = ''
   try {
     await auth.updateProfile(form.name, form.email)
-    successMsg.value = 'Profil berhasil diperbarui.'
+    toast.success('Profil diperbarui', 'Nama dan email terbaru sudah tersimpan.')
   } catch (e: any) {
     const msgs = e?.data?.errors
     if (msgs) {
       errorMsg.value = Object.values(msgs).flat().join(' ')
     } else {
-      errorMsg.value = e?.data?.message ?? 'Terjadi kesalahan. Coba lagi.'
+      errorMsg.value = e?.data?.message ?? 'Perubahan belum tersimpan. Coba beberapa saat lagi, ya.'
     }
   } finally {
     saving.value = false

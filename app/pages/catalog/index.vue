@@ -45,39 +45,32 @@
     </div>
 
     <!-- Empty state (no products at all) -->
-    <div
+    <EmptyState
       v-else-if="store.products.length === 0"
-      class="flex flex-col items-center text-center gap-4 py-16"
+      :icon="Package"
+      title="Belum Ada Produk"
+      description="Tambahkan produk pertama ke katalog Anda"
+      class="py-16"
     >
-      <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
-        <Package class="w-7 h-7 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <div>
-        <p class="text-h2 text-foreground">Belum ada produk</p>
-        <p class="text-body text-muted-foreground mt-1">Tambahkan produk pertama ke katalog Anda</p>
-      </div>
       <Button v-if="canManage" @click="openCreate">
         <Plus class="w-4 h-4" :stroke-width="1.75" />
         Tambah Produk
       </Button>
-    </div>
+    </EmptyState>
 
     <!-- Empty search state -->
-    <div
+    <EmptyState
       v-else-if="filteredProducts.length === 0"
-      class="flex flex-col items-center text-center gap-3 py-14"
+      :icon="PackageSearch"
+      size="compact"
+      title="Produk Tidak Ditemukan"
+      description="Coba kata kunci atau kategori yang berbeda"
+      class="py-14"
     >
-      <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-        <PackageSearch class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <div>
-        <p class="text-h3 text-foreground">Produk tidak ditemukan</p>
-        <p class="text-body text-muted-foreground mt-1">Coba kata kunci atau kategori yang berbeda</p>
-      </div>
       <button @click="searchQuery = ''; activeCategory = 'Semua'" class="text-body text-primary hover:text-primary/80 min-h-[44px]">
         Hapus filter
       </button>
-    </div>
+    </EmptyState>
 
     <!-- Product grid -->
     <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -217,6 +210,8 @@
             <span class="text-body text-foreground">Produk aktif dijual</span>
             <input v-model="form.is_active" type="checkbox" class="w-5 h-5 accent-primary" />
           </label>
+
+          <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
         </div>
 
         <div class="p-4 border-t border-border flex-shrink-0 space-y-2">
@@ -242,6 +237,16 @@
         <div style="height: env(safe-area-inset-bottom, 0px)" />
       </div>
     </Transition>
+
+    <ConfirmDialog
+      v-model:open="confirmDeleteProduct"
+      title="Hapus Produk Ini?"
+      description="Produk akan dihapus dari katalog dan tidak bisa dikembalikan."
+      confirm-label="Ya, Hapus"
+      cancel-label="Batal"
+      :loading="deleting"
+      @confirm="doDelete"
+    />
   </div>
 </template>
 
@@ -254,12 +259,16 @@ definePageMeta({
 import { ref, computed, onMounted, reactive, toRef, type Ref } from 'vue'
 import { Plus, Search, Package, PackageSearch, Pencil, X, Loader2, Trash2, Check } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { InlineAlert } from '@/components/ui/inline-alert'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useCatalogStore, type CatalogProduct, type ProductForm } from '~/stores/catalog'
 import { useAuthStore } from '~/stores/auth'
 import { formatRupiah } from '~/utils'
 
 const store = useCatalogStore()
 const auth = useAuthStore()
+const toast = useToast()
 const canManage = computed(() => auth.hasAnyPermission(['catalog.create', 'catalog.update']))
 
 const searchQuery = ref('')
@@ -269,6 +278,8 @@ const saving = ref(false)
 const showAddCategory = ref(false)
 const newCategoryName = ref('')
 const savingCategory = ref(false)
+const confirmDeleteProduct = ref(false)
+const deleting = ref(false)
 
 const emptyForm = (): ProductForm => ({
   name: '', category_id: null, price: null, cost_price: null, is_active: true,
@@ -302,6 +313,7 @@ function openCreate() {
   Object.assign(form, emptyForm())
   formError.name = undefined; formError.price = undefined
   showAddCategory.value = false; newCategoryName.value = ''
+  store.error = null
   showForm.value = true
 }
 
@@ -316,6 +328,7 @@ function openEdit(p: CatalogProduct) {
   })
   formError.name = undefined; formError.price = undefined
   showAddCategory.value = false; newCategoryName.value = ''
+  store.error = null
   showForm.value = true
 }
 
@@ -328,6 +341,8 @@ async function addCategory() {
     form.category_id = cat.id
     showAddCategory.value = false
     newCategoryName.value = ''
+  } catch {
+    // error shown via InlineAlert
   } finally {
     savingCategory.value = false
   }
@@ -337,23 +352,37 @@ async function submit() {
   formError.name = form.name.trim() ? undefined : 'Nama wajib diisi.'
   formError.price = (form.price ?? -1) >= 0 && form.price !== null ? undefined : 'Harga jual wajib diisi.'
   if (formError.name || formError.price) return
+  const isEdit = !!form.id
   saving.value = true
   try {
     await store.saveProduct({ ...form })
     showForm.value = false
+    toast.success(isEdit ? 'Produk diperbarui' : 'Produk disimpan', `${form.name} berhasil ${isEdit ? 'diperbarui' : 'ditambahkan ke katalog'}.`)
+  } catch {
+    // error shown via InlineAlert
   } finally {
     saving.value = false
   }
 }
 
-async function remove() {
+function remove() {
   if (!form.id) return
-  saving.value = true
+  confirmDeleteProduct.value = true
+}
+
+async function doDelete() {
+  if (!form.id) return
+  const name = form.name
+  deleting.value = true
   try {
     await store.deleteProduct(form.id)
     showForm.value = false
+    toast.success('Produk dihapus', `${name} sudah dihapus dari katalog.`)
+  } catch {
+    // error shown via InlineAlert in the form sheet
   } finally {
-    saving.value = false
+    deleting.value = false
+    confirmDeleteProduct.value = false
   }
 }
 

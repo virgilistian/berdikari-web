@@ -8,15 +8,28 @@
           <p class="text-small text-muted-foreground">{{ formattedDate }}</p>
           <h1 class="text-h1 text-foreground mt-0.5">Keuangan</h1>
         </div>
-        <NuxtLink to="/finance/new" class="hidden sm:block">
-          <button
-            class="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body font-medium min-h-[44px] hover:bg-primary/90 active:bg-primary/80 transition-colors"
-          >
-            <Plus class="w-4 h-4" :stroke-width="1.75" />
-            Tambah Baru
-          </button>
-        </NuxtLink>
+        <div class="flex items-center gap-2">
+          <NuxtLink to="/finance/categories">
+            <button
+              class="flex items-center gap-2 bg-surface border border-border text-foreground px-3 py-2 rounded-lg text-body font-medium min-h-[44px] hover:bg-muted transition-colors"
+              aria-label="Kelola kategori"
+            >
+              <Tag class="w-4 h-4" :stroke-width="1.75" />
+              <span class="hidden sm:inline">Kategori</span>
+            </button>
+          </NuxtLink>
+          <NuxtLink to="/finance/new" class="hidden sm:block">
+            <button
+              class="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-body font-medium min-h-[44px] hover:bg-primary/90 active:bg-primary/80 transition-colors"
+            >
+              <Plus class="w-4 h-4" :stroke-width="1.75" />
+              Tambah Baru
+            </button>
+          </NuxtLink>
+        </div>
       </div>
+
+      <InlineAlert v-if="financeStore.error" variant="destructive">{{ financeStore.error }}</InlineAlert>
 
       <!-- Filters -->
       <div class="flex items-center gap-2 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-none">
@@ -125,23 +138,20 @@
         <h2 class="text-h3 text-foreground mb-3">Riwayat Transaksi</h2>
 
         <!-- Empty state -->
-        <div
+        <EmptyState
           v-if="filteredTransactions.length === 0"
-          class="bg-surface rounded-xl border border-border p-10 flex flex-col items-center text-center gap-3"
+          :icon="Wallet"
+          title="Belum Ada Transaksi"
+          description="Tidak ada transaksi untuk filter ini. Coba ubah filter atau catat transaksi baru."
+          size="compact"
+          class="bg-surface rounded-xl border border-border"
         >
-          <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-            <Wallet class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-          </div>
-          <div>
-            <p class="text-h3 text-foreground">Belum ada transaksi</p>
-            <p class="text-body text-muted-foreground mt-1">Tidak ada transaksi untuk filter ini</p>
-          </div>
           <NuxtLink to="/finance/new">
             <button class="text-body text-primary font-medium min-h-[44px] flex items-center hover:text-primary/80 transition-colors">
               Catat sekarang
             </button>
           </NuxtLink>
-        </div>
+        </EmptyState>
 
         <!-- Transaction list -->
         <div
@@ -214,11 +224,13 @@ definePageMeta({
 })
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
+import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'
 import { formatRupiah } from '~/utils'
 import { Input } from '@/components/ui/input'
 import FilterSheet from '@/components/FilterSheet.vue'
+import { InlineAlert } from '~/components/ui/inline-alert'
+import { EmptyState } from '~/components/ui/empty-state'
 
 const financeStore = useFinanceStore()
 

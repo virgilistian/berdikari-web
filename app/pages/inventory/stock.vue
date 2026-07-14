@@ -61,15 +61,14 @@
       </div>
 
       <!-- Empty -->
-      <div v-if="store.rows.length === 0" class="flex flex-col items-center justify-center py-16 gap-3 text-center">
-        <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-          <Package class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <div>
-          <p class="text-h3 text-foreground">Belum ada stok</p>
-          <p class="text-body text-muted-foreground mt-1">Terima stok masuk untuk mulai memantau inventori</p>
-        </div>
-      </div>
+      <EmptyState
+        v-if="store.rows.length === 0"
+        :icon="Package"
+        size="compact"
+        title="Belum Ada Stok"
+        description="Terima stok masuk untuk mulai memantau inventori"
+        class="py-16"
+      />
 
       <!-- Stock list -->
       <div v-else class="space-y-2">
@@ -146,6 +145,8 @@
             />
           </div>
 
+          <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
+
           <button
             :disabled="saving || qtyInput === null"
             @click="submitAction"
@@ -172,8 +173,11 @@ import { ref, computed, onMounted } from 'vue'
 import { CalendarDays, AlertTriangle, Package, X, Loader2 } from '@lucide/vue'
 import { useInventoryStore, type StockRow } from '~/stores/inventory'
 import { formatRupiah } from '~/utils'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 
 const store = useInventoryStore()
+const toast = useToast()
 
 const formattedDate = new Date().toLocaleDateString('id-ID', {
   weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -191,6 +195,7 @@ const saving = ref(false)
 const actionTitle = computed(() => (action.value === 'receive' ? 'Stok Masuk' : 'Sesuaikan Stok'))
 
 function openAction(type: 'receive' | 'adjust', row: StockRow) {
+  store.error = null
   action.value = type
   activeRow.value = row
   qtyInput.value = type === 'adjust' ? row.quantity : null
@@ -209,13 +214,17 @@ async function submitAction() {
   try {
     if (action.value === 'receive') {
       await store.receive(activeRow.value.product_id, qtyInput.value, undefined, reasonInput.value || undefined)
+      toast.success('Stok masuk dicatat', `${qtyInput.value} pcs ${activeRow.value.product_name} sudah ditambahkan.`)
     } else {
       await store.adjust(activeRow.value.product_id, qtyInput.value, reasonInput.value || undefined)
       if (minInput.value !== null && minInput.value !== activeRow.value.min_stock) {
         await store.setMinStock(activeRow.value.product_id, minInput.value)
       }
+      toast.success('Stok disesuaikan', `Stok ${activeRow.value.product_name} sudah diperbarui.`)
     }
     closeAction()
+  } catch {
+    // error shown via InlineAlert in the sheet
   } finally {
     saving.value = false
   }

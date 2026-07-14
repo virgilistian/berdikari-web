@@ -138,21 +138,15 @@
         </div>
 
         <!-- Empty state -->
-        <div
+        <EmptyState
           v-else-if="filteredProducts.length === 0"
-          class="flex flex-col items-center justify-center py-16 gap-3 text-center"
+          :icon="PackageSearch"
+          size="compact"
+          :title="products.length === 0 ? 'Menu masih kosong' : 'Menu tidak ketemu'"
+          :description="products.length === 0 ? 'Tambahkan produk dulu di menu Katalog, ya' : 'Coba kata kunci lain atau pilih kategori berbeda'"
         >
-          <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-            <PackageSearch class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-          </div>
-          <div>
-            <p class="text-h3 text-foreground">{{ products.length === 0 ? 'Belum ada produk' : 'Produk tidak ditemukan' }}</p>
-            <p class="text-body text-muted-foreground mt-1">
-              {{ products.length === 0 ? 'Tambahkan produk di menu Katalog' : 'Coba kata kunci yang berbeda' }}
-            </p>
-          </div>
           <button v-if="products.length > 0" @click="searchQuery = ''" class="text-body text-primary hover:text-primary/80 min-h-[44px]">Hapus pencarian</button>
-        </div>
+        </EmptyState>
 
         <!-- Product grid -->
         <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -350,7 +344,7 @@
               placeholder="0"
             />
           </div>
-          <p v-if="shiftStore.error" class="text-small text-destructive" role="alert">{{ shiftStore.error }}</p>
+          <InlineAlert v-if="shiftStore.error" variant="destructive">{{ shiftStore.error }}</InlineAlert>
         </div>
         <DrawerFooter>
           <div class="flex w-full gap-2">
@@ -433,8 +427,8 @@ export const CartPanel = defineComponent({
             h(AlertCircle, { class: 'w-7 h-7 text-destructive', strokeWidth: 1.75 })
           ),
           h('div', {}, [
-            h('p', { class: 'text-h2 text-foreground' }, 'Transaksi Gagal'),
-            h('p', { class: 'text-body text-muted-foreground mt-1' }, 'Periksa koneksi dan coba lagi'),
+            h('p', { class: 'text-h2 text-foreground' }, 'Yah, Transaksi Belum Berhasil'),
+            h('p', { class: 'text-body text-muted-foreground mt-1' }, 'Coba periksa koneksi internet kamu, lalu coba lagi ya'),
           ]),
           h('button', {
             class: 'text-body text-primary font-medium min-h-[44px] hover:text-primary/80 transition-colors',
@@ -450,8 +444,8 @@ export const CartPanel = defineComponent({
               h('div', { class: 'w-12 h-12 rounded-full bg-muted flex items-center justify-center' },
                 h(CheckCircle2, { class: 'w-6 h-6 text-muted-foreground', strokeWidth: 1.5 })
               ),
-              h('p', { class: 'text-h3 text-foreground' }, 'Pesanan kosong'),
-              h('p', { class: 'text-body text-muted-foreground' }, 'Pilih menu dari daftar produk'),
+              h('p', { class: 'text-h3 text-foreground' }, 'Belum Ada Pesanan'),
+              h('p', { class: 'text-body text-muted-foreground' }, 'Yuk, pilih menu di sebelah untuk mulai'),
             ])
           : h('div', { class: 'flex-1 overflow-y-auto p-4 space-y-2' },
               cartStore.items.map((item: any) =>
@@ -561,11 +555,14 @@ import { formatRupiah, cn } from '~/utils'
 import { buttonVariants } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { DrawerRoot, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '~/components/ui/drawer'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import PlateScanSheet from '~/components/PlateScanSheet.vue'
 
 const cartStore = useCartStore()
 const shiftStore = useShiftStore()
 const api = useApi()
+const toast = useToast()
 
 const showOpenForm = ref(false)
 const openForm = ref({ opening_cash: 0 })
@@ -575,6 +572,7 @@ async function doOpenShift() {
     await shiftStore.openShift(openForm.value.opening_cash ?? 0)
     showOpenForm.value = false
     openForm.value = { opening_cash: 0 }
+    toast.success('Shift dibuka', 'Selamat berjualan hari ini!')
   } catch { /* error handled by store */ }
 }
 
@@ -622,6 +620,7 @@ const failedOrders = computed(() => cartStore.pendingOrders.filter(o => o.status
 
 function discardFailed() {
   for (const order of failedOrders.value) cartStore.discardPendingOrder(order.client_uuid)
+  toast.info('Transaksi ditolak dihapus', 'Transaksi itu tidak akan dicoba kirim ulang')
 }
 
 const quickAmounts = computed(() => {

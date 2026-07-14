@@ -85,23 +85,19 @@
       </div>
 
       <!-- Empty state -->
-      <div
+      <EmptyState
         v-else-if="recentTransactions.length === 0"
-        class="bg-surface rounded-xl border border-border p-10 flex flex-col items-center text-center gap-3"
+        :icon="ShoppingCart"
+        title="Belum Ada Transaksi"
+        description="Mulai kasir untuk mencatat penjualan pertama hari ini."
+        class="bg-surface rounded-xl border border-border"
       >
-        <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-          <ShoppingCart class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <div>
-          <p class="text-h3 text-foreground">Belum ada transaksi</p>
-          <p class="text-body text-muted-foreground mt-1">Mulai kasir untuk mencatat penjualan pertama hari ini</p>
-        </div>
         <NuxtLink v-if="auth.hasPermission('pos.open')" to="/pos">
           <button class="text-body text-primary font-medium min-h-[44px] flex items-center hover:text-primary/80 transition-colors">
             Buka kasir sekarang
           </button>
         </NuxtLink>
-      </div>
+      </EmptyState>
 
       <!-- Data list -->
       <div
@@ -144,6 +140,7 @@ import {
   ShoppingCart, Package, TrendingUp, CheckCircle2, Receipt, Clock,
   Wallet, Users, ClipboardList, BarChart2, PlusCircle, CalendarCheck,
 } from '@lucide/vue'
+import { EmptyState } from '~/components/ui/empty-state'
 import { useAuthStore } from '~/stores/auth'
 import { formatRupiah } from '~/utils'
 

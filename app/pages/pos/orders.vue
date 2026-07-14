@@ -31,13 +31,13 @@
     </div>
 
     <!-- Empty -->
-    <div v-else-if="store.orders.length === 0" class="flex flex-col items-center justify-center py-16 gap-3 text-center">
-      <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-        <ReceiptText class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-      </div>
-      <p class="text-h3 text-foreground">Tidak ada pesanan</p>
-      <p class="text-body text-muted-foreground">Belum ada pesanan untuk filter ini</p>
-    </div>
+    <EmptyState
+      v-else-if="store.orders.length === 0"
+      :icon="ReceiptText"
+      size="compact"
+      title="Belum Ada Pesanan"
+      description="Pesanan dengan filter ini belum ada — coba filter lain atau mulai transaksi baru"
+    />
 
     <!-- Order list -->
     <div v-else class="space-y-2">
@@ -108,7 +108,7 @@
             <input :value="payDisplay" @input="onPayInput" type="text" inputmode="numeric"
               class="mt-1 w-full h-11 px-3 bg-background border border-input rounded-lg tabular-nums focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary" placeholder="0" />
           </div>
-          <p v-if="actionError" class="text-small text-destructive">{{ actionError }}</p>
+          <InlineAlert v-if="actionError" variant="destructive">{{ actionError }}</InlineAlert>
         </div>
 
         <!-- Actions -->
@@ -118,7 +118,7 @@
             <button :disabled="busy" @click="doComplete" class="w-full h-12 rounded-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-2 disabled:opacity-60">
               <Loader2 v-if="busy" class="w-4 h-4 animate-spin" :stroke-width="2" /> Selesaikan &amp; Bayar
             </button>
-            <button :disabled="busy" @click="doCancel" class="w-full h-11 rounded-lg font-medium text-small text-destructive hover:bg-destructive/10">Batalkan Pesanan</button>
+            <button :disabled="busy" @click="confirmCancel = true" class="w-full h-11 rounded-lg font-medium text-small text-destructive hover:bg-destructive/10">Batalkan Pesanan</button>
           </template>
 
           <!-- Completed unpaid/partial: settle -->
@@ -130,7 +130,7 @@
 
           <!-- Completed paid: refund -->
           <template v-else-if="detail.status === 'completed'">
-            <button :disabled="busy" @click="doRefund" class="w-full h-12 rounded-lg font-medium text-destructive border border-destructive/40 hover:bg-destructive/10 flex items-center justify-center gap-2 disabled:opacity-60">
+            <button :disabled="busy" @click="confirmRefund = true" class="w-full h-12 rounded-lg font-medium text-destructive border border-destructive/40 hover:bg-destructive/10 flex items-center justify-center gap-2 disabled:opacity-60">
               <Loader2 v-if="busy" class="w-4 h-4 animate-spin" :stroke-width="2" /> Refund Pesanan
             </button>
           </template>
@@ -142,6 +142,25 @@
         <div style="height: env(safe-area-inset-bottom, 0px)" />
       </div>
     </Transition>
+
+    <ConfirmDialog
+      v-model:open="confirmCancel"
+      title="Batalkan Pesanan Ini?"
+      description="Pesanan yang dibatalkan tidak bisa dikembalikan lagi."
+      confirm-label="Ya, Batalkan"
+      cancel-label="Tidak Jadi"
+      :loading="busy"
+      @confirm="doCancel"
+    />
+    <ConfirmDialog
+      v-model:open="confirmRefund"
+      title="Refund Pesanan Ini?"
+      description="Uang pembayaran akan dianggap dikembalikan ke pelanggan dan pesanan ditandai refund."
+      confirm-label="Ya, Refund"
+      cancel-label="Tidak Jadi"
+      :loading="busy"
+      @confirm="doRefund"
+    />
   </div>
 </template>
 
@@ -153,12 +172,18 @@ definePageMeta({
 
 import { ref, computed, onMounted } from 'vue'
 import { Plus, X, Loader2, ReceiptText } from '@lucide/vue'
+import { ConfirmDialog } from '~/components/ui/confirm-dialog'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { useOrdersStore, type Order } from '~/stores/orders'
 import { useCatalogStore } from '~/stores/catalog'
 import { formatRupiah } from '~/utils'
 
 const store = useOrdersStore()
 const catalog = useCatalogStore()
+const toast = useToast()
+const confirmCancel = ref(false)
+const confirmRefund = ref(false)
 
 const formattedDate = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -226,23 +251,26 @@ function openDetail(o: Order) {
   actionError.value = null
 }
 
-async function run(fn: () => Promise<void>) {
+async function run(fn: () => Promise<void>, successMessage?: string) {
   busy.value = true
   actionError.value = null
   try {
     await fn()
     detail.value = null
+    if (successMessage) toast.success(successMessage)
   } catch (e: any) {
-    actionError.value = e?.data?.message ?? 'Terjadi kesalahan.'
+    actionError.value = e?.data?.message ?? 'Yah, ada yang salah. Coba lagi sebentar lagi, ya.'
   } finally {
     busy.value = false
+    confirmCancel.value = false
+    confirmRefund.value = false
   }
 }
 
-const doComplete = () => run(() => store.complete(detail.value!.id, payAmount.value ?? 0))
-const doPay = () => run(() => store.pay(detail.value!.id, payAmount.value ?? 0))
-const doCancel = () => run(() => store.cancel(detail.value!.id))
-const doRefund = () => run(() => store.refund(detail.value!.id))
+const doComplete = () => run(() => store.complete(detail.value!.id, payAmount.value ?? 0), 'Pembayaran diterima, transaksi selesai')
+const doPay = () => run(() => store.pay(detail.value!.id, payAmount.value ?? 0), 'Pembayaran diterima')
+const doCancel = () => run(() => store.cancel(detail.value!.id), 'Pesanan dibatalkan')
+const doRefund = () => run(() => store.refund(detail.value!.id), 'Pesanan sudah direfund')
 
 onMounted(() => {
   catalog.fetchProducts()

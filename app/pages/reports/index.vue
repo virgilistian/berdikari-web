@@ -34,6 +34,16 @@
       <div class="skeleton h-48 rounded-xl" />
     </div>
 
+    <!-- Empty state: nothing could be loaded for this period -->
+    <EmptyState
+      v-else-if="!hasAnyData"
+      :icon="BarChart2"
+      title="Belum Ada Data Laporan"
+      description="Coba pilih periode lain, atau muat ulang halaman ini jika masalah berlanjut."
+    >
+      <Button variant="outline" size="sm" @click="load">Muat Ulang</Button>
+    </EmptyState>
+
     <template v-else>
       <!-- Summary KPIs -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -193,9 +203,11 @@ definePageMeta({
 import { ref, computed, onMounted, watch } from 'vue'
 import type { Component } from 'vue'
 import {
-  CheckCircle2, Download, Lightbulb, Receipt, ShoppingCart, TrendingUp, Wallet,
+  BarChart2, CheckCircle2, Download, Lightbulb, Receipt, ShoppingCart, TrendingUp, Wallet,
 } from '@lucide/vue'
 import FilterSheet from '~/components/FilterSheet.vue'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '~/components/ui/empty-state'
 import { useAuthStore } from '~/stores/auth'
 import { formatRupiah, downloadCsv } from '~/utils'
 import type { HrSummary } from '~/stores/hr'
@@ -224,6 +236,7 @@ interface FinanceSummary {
 
 const auth = useAuthStore()
 const api = useApi()
+const toast = useToast()
 
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
@@ -248,6 +261,11 @@ const range = computed(() => {
 })
 
 const maxDaily = computed(() => Math.max(0, ...(sales.value?.daily.map(d => d.total) ?? [0])))
+
+/** True once at least one report section has data to show. */
+const hasAnyData = computed(() =>
+  !!sales.value || !!finance.value || lowStock.value !== null || !!hrSummary.value,
+)
 
 const kpiCards = computed(() => {
   const cards: { label: string, value: string, hint: string, icon: Component }[] = []
@@ -374,6 +392,7 @@ function exportCsv() {
   }
 
   downloadCsv(`laporan-berdikari-${from}-sd-${to}`, ['Keterangan', 'Nilai', 'Info'], rows)
+  toast.success('Laporan diunduh', 'File CSV sudah tersimpan di perangkat Anda.')
 }
 
 watch(period, load)

@@ -105,13 +105,24 @@
 
       <!-- Category selection -->
       <div class="space-y-3">
-        <div>
-          <h2 class="text-h3 text-foreground">Digunakan untuk apa?</h2>
-          <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-h3 text-foreground">Digunakan untuk apa?</h2>
+            <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+          </div>
+          <button
+            v-if="!showAddCategory"
+            type="button"
+            @click="openAddCategory"
+            class="text-caption text-primary hover:text-primary/80 flex items-center gap-1 min-h-[32px] flex-shrink-0"
+          >
+            <Plus class="w-3 h-3" :stroke-width="2" />
+            Buat baru
+          </button>
         </div>
         <div class="grid grid-cols-2 gap-2" role="group" aria-label="Kategori pengeluaran">
           <button
-            v-for="cat in EXPENSE_CATEGORIES"
+            v-for="cat in expenseCategoryNames"
             :key="cat"
             @click="expenseForm.category = cat"
             class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
@@ -123,6 +134,36 @@
             {{ cat }}
           </button>
         </div>
+        <div v-if="showAddCategory" class="flex gap-2">
+          <input
+            v-model="newCategoryName"
+            type="text"
+            maxlength="100"
+            placeholder="Nama kategori baru"
+            class="flex-1 h-10 px-3 bg-surface border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary"
+            @keyup.enter="addCategory"
+            @keyup.esc="closeAddCategory"
+          />
+          <button
+            type="button"
+            :disabled="savingCategory || !newCategoryName.trim()"
+            @click="addCategory"
+            class="h-10 w-10 flex items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50 flex-shrink-0"
+            aria-label="Simpan kategori"
+          >
+            <Loader2 v-if="savingCategory" class="w-4 h-4 animate-spin" :stroke-width="2" />
+            <Check v-else class="w-4 h-4" :stroke-width="2" />
+          </button>
+          <button
+            type="button"
+            @click="closeAddCategory"
+            class="h-10 w-10 flex items-center justify-center rounded-lg border border-input text-muted-foreground hover:bg-muted flex-shrink-0"
+            aria-label="Batal"
+          >
+            <X class="w-4 h-4" :stroke-width="1.75" />
+          </button>
+        </div>
+        <InlineAlert v-if="addCategoryError" variant="destructive">{{ addCategoryError }}</InlineAlert>
       </div>
 
       <!-- Notes -->
@@ -169,13 +210,24 @@
 
       <!-- Category selection -->
       <div class="space-y-3">
-        <div>
-          <h2 class="text-h3 text-foreground">Dari mana pemasukan ini?</h2>
-          <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-h3 text-foreground">Dari mana pemasukan ini?</h2>
+            <p class="text-small text-muted-foreground mt-0.5">Pilih satu kategori</p>
+          </div>
+          <button
+            v-if="!showAddCategory"
+            type="button"
+            @click="openAddCategory"
+            class="text-caption text-success hover:text-success/80 flex items-center gap-1 min-h-[32px] flex-shrink-0"
+          >
+            <Plus class="w-3 h-3" :stroke-width="2" />
+            Buat baru
+          </button>
         </div>
         <div class="grid grid-cols-2 gap-2" role="group" aria-label="Kategori pemasukan">
           <button
-            v-for="cat in INCOME_CATEGORIES"
+            v-for="cat in incomeCategoryNames"
             :key="cat"
             @click="incomeForm.category = cat"
             class="h-11 px-3 rounded-lg text-body font-medium text-left transition-all border active:scale-[0.97]"
@@ -187,6 +239,36 @@
             {{ cat }}
           </button>
         </div>
+        <div v-if="showAddCategory" class="flex gap-2">
+          <input
+            v-model="newCategoryName"
+            type="text"
+            maxlength="100"
+            placeholder="Nama kategori baru"
+            class="flex-1 h-10 px-3 bg-surface border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-success"
+            @keyup.enter="addCategory"
+            @keyup.esc="closeAddCategory"
+          />
+          <button
+            type="button"
+            :disabled="savingCategory || !newCategoryName.trim()"
+            @click="addCategory"
+            class="h-10 w-10 flex items-center justify-center rounded-lg bg-success text-success-foreground disabled:opacity-50 flex-shrink-0"
+            aria-label="Simpan kategori"
+          >
+            <Loader2 v-if="savingCategory" class="w-4 h-4 animate-spin" :stroke-width="2" />
+            <Check v-else class="w-4 h-4" :stroke-width="2" />
+          </button>
+          <button
+            type="button"
+            @click="closeAddCategory"
+            class="h-10 w-10 flex items-center justify-center rounded-lg border border-input text-muted-foreground hover:bg-muted flex-shrink-0"
+            aria-label="Batal"
+          >
+            <X class="w-4 h-4" :stroke-width="1.75" />
+          </button>
+        </div>
+        <InlineAlert v-if="addCategoryError" variant="destructive">{{ addCategoryError }}</InlineAlert>
       </div>
 
       <!-- Notes -->
@@ -208,7 +290,7 @@
 
     <!-- Desktop save button -->
     <div class="hidden md:block">
-      <p v-if="saveError" class="text-small text-destructive mb-2">{{ saveError }}</p>
+      <InlineAlert v-if="saveError" variant="destructive" class="mb-2">{{ saveError }}</InlineAlert>
       <button
         @click="save"
         :disabled="!isFormValid || saving"
@@ -234,6 +316,8 @@
     class="md:hidden fixed bottom-16 left-0 right-0 z-20 bg-surface border-t border-border px-4 pt-3"
     style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem))"
   >
+    <InlineAlert v-if="saveError" variant="destructive" class="mb-2.5">{{ saveError }}</InlineAlert>
+
     <!-- Preview row -->
     <div
       v-if="isFormValid"
@@ -330,13 +414,15 @@ definePageMeta({
 
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Check, CheckCircle2, Loader2 } from '@lucide/vue'
+import { ArrowLeft, Check, CheckCircle2, Loader2, Plus, X } from '@lucide/vue'
 import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '~/stores/finance'
 import { useAuthStore } from '~/stores/auth'
+import { InlineAlert } from '~/components/ui/inline-alert'
 
 const router = useRouter()
 const financeStore = useFinanceStore()
 const authStore = useAuthStore()
+const toast = useToast()
 
 onMounted(() => {
   financeStore.fetchBusinesses().then(() => {
@@ -345,6 +431,17 @@ onMounted(() => {
       selectedBusinessId.value = authStore.user.business_id
     }
   })
+  financeStore.fetchCategories()
+})
+
+const expenseCategoryNames = computed(() => {
+  const custom = financeStore.categories.filter(c => c.type === 'expense').map(c => c.name)
+  return custom.length ? custom : [...EXPENSE_CATEGORIES]
+})
+
+const incomeCategoryNames = computed(() => {
+  const custom = financeStore.categories.filter(c => c.type === 'income').map(c => c.name)
+  return custom.length ? custom : [...INCOME_CATEGORIES]
 })
 
 const selectedBusinessId = ref<string | null>(authStore.user?.business_id ?? null)
@@ -363,6 +460,11 @@ const formMode = ref<'expense' | 'income'>('expense')
 
 const expenseForm = ref({ category: '', notes: '' })
 const incomeForm = ref({ category: '', notes: '' })
+
+const showAddCategory = ref(false)
+const newCategoryName = ref('')
+const savingCategory = ref(false)
+const addCategoryError = ref<string | null>(null)
 
 const quickAmounts = [10_000, 25_000, 50_000, 100_000, 250_000, 500_000]
 
@@ -386,7 +488,41 @@ function switchTab(tab: 'expense' | 'income') {
   expenseForm.value = { category: '', notes: '' }
   incomeForm.value = { category: '', notes: '' }
   saved.value = false
+  closeAddCategory()
   setTimeout(() => amountInput.value?.focus(), 50)
+}
+
+function openAddCategory() {
+  showAddCategory.value = true
+  newCategoryName.value = ''
+  addCategoryError.value = null
+}
+
+function closeAddCategory() {
+  showAddCategory.value = false
+  newCategoryName.value = ''
+  addCategoryError.value = null
+}
+
+async function addCategory() {
+  const name = newCategoryName.value.trim()
+  if (!name || savingCategory.value) return
+  savingCategory.value = true
+  addCategoryError.value = null
+  try {
+    const cat = await financeStore.createCategory({ name, type: formMode.value })
+    if (formMode.value === 'expense') {
+      expenseForm.value.category = cat.name
+    } else {
+      incomeForm.value.category = cat.name
+    }
+    closeAddCategory()
+    toast.success('Kategori ditambahkan', `"${cat.name}" siap dipakai.`)
+  } catch (e: any) {
+    addCategoryError.value = e?.data?.message ?? 'Kategori belum bisa dibuat. Coba lagi sebentar, ya.'
+  } finally {
+    savingCategory.value = false
+  }
 }
 
 function onAmountInput(e: Event) {
@@ -427,7 +563,7 @@ async function save() {
     savedSource.value = category
     saved.value = true
   } catch (e: any) {
-    saveError.value = e?.data?.message ?? 'Gagal menyimpan transaksi.'
+    saveError.value = e?.data?.message ?? 'Transaksi belum bisa disimpan. Coba lagi sebentar, ya.'
   } finally {
     saving.value = false
   }

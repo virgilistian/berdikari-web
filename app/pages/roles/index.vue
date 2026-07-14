@@ -103,6 +103,8 @@
 
             <!-- Permission checkboxes grouped by resource -->
             <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <InlineAlert v-if="saveError" variant="destructive">{{ saveError }}</InlineAlert>
+
               <div
                 v-for="(actions, resource) in groupedPermissions"
                 :key="resource"
@@ -148,6 +150,7 @@ import { Loader2, AlertCircle, ShieldCheck, Pencil, X, Info } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '~/stores/auth'
 import { PermissionSeeder } from '~/utils/permissions'
+import { InlineAlert } from '~/components/ui/inline-alert'
 
 definePageMeta({
   middleware: ['auth', 'permission'],
@@ -159,6 +162,7 @@ useHead({ title: 'Peran & Akses — Berdikari' })
 
 const config = useRuntimeConfig()
 const auth = useAuthStore()
+const toast = useToast()
 
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
@@ -196,7 +200,7 @@ async function fetchRoles() {
     )
     roles.value = res.data
   } catch (e: any) {
-    fetchError.value = e?.data?.message ?? 'Gagal memuat daftar peran.'
+    fetchError.value = e?.data?.message ?? 'Belum bisa memuat daftar peran. Coba muat ulang halaman ini.'
   } finally {
     loading.value = false
   }
@@ -218,21 +222,26 @@ const groupedPermissions = computed<Record<string, string[]>>(() => {
 const editingRole = ref<ApiRole | null>(null)
 const selectedPermissions = ref<string[]>([])
 const saving = ref(false)
+const saveError = ref('')
 
 function openEdit(role: ApiRole) {
   editingRole.value = role
   selectedPermissions.value = [...role.permissions]
+  saveError.value = ''
 }
 
 function closeModal() {
   editingRole.value = null
   selectedPermissions.value = []
+  saveError.value = ''
 }
 
 async function savePermissions() {
   if (!editingRole.value) return
   saving.value = true
+  saveError.value = ''
   try {
+    const roleName = ROLE_LABELS[editingRole.value.name] ?? editingRole.value.name
     const res = await $fetch<{ success: boolean; data: ApiRole }>(
       `${config.public.apiBase}/v1/roles/${editingRole.value.id}/permissions`,
       {
@@ -244,9 +253,10 @@ async function savePermissions() {
     // Update local state
     const idx = roles.value.findIndex(r => r.id === editingRole.value!.id)
     if (idx !== -1) roles.value[idx] = res.data
+    toast.success('Izin peran disimpan', `Izin untuk peran ${roleName} sudah diperbarui.`)
     closeModal()
   } catch (e: any) {
-    alert(e?.data?.message ?? 'Gagal menyimpan izin.')
+    saveError.value = e?.data?.message ?? 'Izin belum bisa disimpan. Coba lagi beberapa saat lagi, ya.'
   } finally {
     saving.value = false
   }

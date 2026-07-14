@@ -40,19 +40,81 @@
       </button>
 
       <!-- Notification bell -->
-      <button
-        class="relative w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="Notifikasi"
-        type="button"
-      >
-        <Bell class="w-4.5 h-4.5" :stroke-width="1.75" />
-        <!-- Unread badge — hidden until wired to real notifications -->
-        <span
-          v-if="unreadCount > 0"
-          class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive"
-          :aria-label="`${unreadCount} notifikasi belum dibaca`"
-        />
-      </button>
+      <div class="relative" ref="notifRef">
+        <button
+          @click="toggleNotifPanel"
+          class="relative w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Notifikasi"
+          type="button"
+        >
+          <Bell class="w-4.5 h-4.5" :stroke-width="1.75" />
+          <span
+            v-if="notifStore.unreadCount > 0"
+            class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive"
+            :aria-label="`${notifStore.unreadCount} notifikasi belum dibaca`"
+          />
+        </button>
+
+        <!-- Notification panel -->
+        <Transition
+          enter-active-class="transition ease-out duration-150"
+          enter-from-class="opacity-0 scale-95 -translate-y-1"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition ease-in duration-100"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 -translate-y-1"
+        >
+          <div
+            v-show="notifPanelOpen"
+            class="absolute right-0 top-[calc(100%+6px)] w-80 bg-surface rounded-xl border border-border shadow-elevation-3 origin-top-right z-50 flex flex-col overflow-hidden"
+            style="max-height: 420px"
+          >
+            <div class="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+              <span class="text-small font-semibold text-foreground">Notifikasi</span>
+              <button
+                v-if="notifStore.unreadCount > 0"
+                @click="notifStore.markAllRead()"
+                class="text-caption text-primary hover:text-primary/80 transition-colors"
+              >
+                Tandai semua dibaca
+              </button>
+            </div>
+            <div class="overflow-y-auto flex-1">
+              <div v-if="notifStore.loading && notifStore.notifications.length === 0" class="p-4 space-y-2">
+                <div v-for="i in 3" :key="i" class="skeleton h-12 rounded-lg" />
+              </div>
+              <div
+                v-else-if="notifStore.notifications.length === 0"
+                class="flex flex-col items-center justify-center py-10 px-4 text-center"
+              >
+                <Bell class="w-8 h-8 text-muted-foreground mb-2" :stroke-width="1.5" />
+                <p class="text-small text-muted-foreground">Tidak ada notifikasi</p>
+              </div>
+              <div v-else class="divide-y divide-border">
+                <button
+                  v-for="notif in notifStore.notifications"
+                  :key="notif.id"
+                  @click="handleNotifClick(notif)"
+                  class="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+                  :class="!notif.is_read ? 'bg-primary/4' : ''"
+                >
+                  <div class="flex items-start gap-2">
+                    <div
+                      class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                      :class="!notif.is_read ? 'bg-primary' : 'bg-transparent'"
+                    />
+                    <div class="min-w-0">
+                      <p class="text-small font-medium text-foreground truncate">{{ notif.title }}</p>
+                      <p class="text-caption text-muted-foreground mt-0.5 line-clamp-2">{{ notif.body }}</p>
+                      <p class="text-caption text-muted-foreground/60 mt-1">{{ formatNotifTime(notif.created_at) }}</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
 
       <!-- User avatar dropdown -->
       <div class="relative ml-1" ref="dropdownRef">
@@ -214,6 +276,7 @@ import {
   LogOut, ChevronDown, Menu, Loader2,
 } from '@lucide/vue'
 import { useAuthStore } from '~/stores/auth'
+import { useNotificationStore } from '~/stores/notifications'
 import { usePageTitle } from '~/composables/usePageTitle'
 
 // ── Props & Emits ────────────────────────────────────────────────────────────
@@ -227,6 +290,7 @@ const emit = defineEmits<{
 
 // ── Stores & composables ─────────────────────────────────────────────────────
 const authStore = useAuthStore()
+const notifStore = useNotificationStore()
 const { pageTitle } = usePageTitle()
 
 // ── Theme toggle ─────────────────────────────────────────────────────────────
@@ -249,9 +313,36 @@ function toggleTheme() {
   themePreference.value = isDark.value ? 'light' : 'dark'
 }
 
-// ── Notification placeholder ─────────────────────────────────────────────────
-// Wired to 0 until the Notifications API is implemented.
-const unreadCount = ref(0)
+// ── Notification panel ────────────────────────────────────────────────────────
+const notifPanelOpen = ref(false)
+const notifRef = ref<HTMLElement | null>(null)
+
+function toggleNotifPanel() {
+  notifPanelOpen.value = !notifPanelOpen.value
+  if (notifPanelOpen.value) {
+    notifStore.fetchNotifications()
+  }
+}
+
+function handleNotifClick(notif: { id: string; is_read: boolean }) {
+  if (!notif.is_read) notifStore.markRead(notif.id)
+}
+
+function formatNotifTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return 'Baru saja'
+  if (diffMin < 60) return `${diffMin} menit lalu`
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return `${diffH} jam lalu`
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+}
+
+// ── Notification placeholder — kept for backward compat ──────────────────────
+// Wired to store's count now
+const unreadCount = computed(() => notifStore.unreadCount)
 
 // ── User display helpers ──────────────────────────────────────────────────────
 const roleLabels: Record<string, string> = {
@@ -305,6 +396,9 @@ function handleOutsideClick(event: MouseEvent) {
   const path = event.composedPath()
   if (dropdownRef.value && !path.includes(dropdownRef.value)) {
     closeDropdown()
+  }
+  if (notifRef.value && !path.includes(notifRef.value)) {
+    notifPanelOpen.value = false
   }
 }
 

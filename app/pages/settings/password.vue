@@ -24,25 +24,8 @@
 
       <!-- Form -->
       <form @submit.prevent="handleSave" class="px-5 py-5 space-y-4">
-        <!-- Success alert -->
-        <div
-          v-if="successMsg"
-          class="flex items-center gap-2 px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg"
-          role="status"
-        >
-          <CheckCircle2 class="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" :stroke-width="1.75" />
-          <p class="text-body text-green-700 dark:text-green-400">{{ successMsg }}</p>
-        </div>
-
         <!-- Error alert -->
-        <div
-          v-if="errorMsg"
-          class="flex items-start gap-2 px-3 py-2.5 bg-destructive/8 border border-destructive/20 rounded-lg"
-          role="alert"
-        >
-          <AlertCircle class="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" :stroke-width="1.75" />
-          <p class="text-body text-destructive">{{ errorMsg }}</p>
-        </div>
+        <InlineAlert v-if="errorMsg" variant="destructive">{{ errorMsg }}</InlineAlert>
 
         <!-- Current password -->
         <div class="space-y-1.5">
@@ -151,9 +134,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { ArrowLeft, ShieldCheck, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from '@lucide/vue'
+import { ArrowLeft, ShieldCheck, Loader2, Eye, EyeOff } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({
@@ -164,6 +148,7 @@ definePageMeta({
 useHead({ title: 'Ganti Kata Sandi — Berdikari' })
 
 const auth = useAuthStore()
+const toast = useToast()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 const form = reactive({ current: '', password: '', confirmation: '' })
@@ -171,7 +156,6 @@ const showCurrent = ref(false)
 const showNew = ref(false)
 const showConfirm = ref(false)
 const saving = ref(false)
-const successMsg = ref('')
 const errorMsg = ref('')
 
 // ── Validation helpers ────────────────────────────────────────────────────────
@@ -214,11 +198,10 @@ const strengthLabelClass = computed(() => STRENGTH_TEXT_CLASSES[strength.value] 
 async function handleSave() {
   if (!canSubmit.value) return
   saving.value = true
-  successMsg.value = ''
   errorMsg.value = ''
   try {
     await auth.changePassword(form.current, form.password, form.confirmation)
-    successMsg.value = 'Kata sandi berhasil diubah.'
+    toast.success('Kata sandi diganti', 'Gunakan kata sandi baru Anda saat masuk berikutnya.')
     // Reset form
     Object.assign(form, { current: '', password: '', confirmation: '' })
   } catch (e: any) {
@@ -226,7 +209,7 @@ async function handleSave() {
     if (msgs) {
       errorMsg.value = Object.values(msgs).flat().join(' ')
     } else {
-      errorMsg.value = e?.data?.message ?? 'Terjadi kesalahan. Coba lagi.'
+      errorMsg.value = e?.data?.message ?? 'Kata sandi belum bisa diganti. Periksa lagi kata sandi saat ini, ya.'
     }
   } finally {
     saving.value = false

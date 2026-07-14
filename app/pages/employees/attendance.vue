@@ -9,13 +9,12 @@
     <EmployeeSectionTabs current="attendance" />
 
     <!-- Self clock in/out (attendance.create) -->
-    <div v-if="auth.hasPermission('attendance.create')" class="bg-surface rounded-xl border border-border p-5 shadow-elevation-1">
+    <div v-if="auth.hasPermission('attendance.create')" class="bg-surface rounded-xl border border-border p-5 shadow-elevation-1 space-y-3">
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p class="text-h3 text-foreground">Kehadiran Saya Hari Ini</p>
-          <p class="text-small text-muted-foreground mt-1">
-            <template v-if="selfError">{{ selfError }}</template>
-            <template v-else-if="hr.myToday?.clock_in">
+          <p v-if="!selfError" class="text-small text-muted-foreground mt-1">
+            <template v-if="hr.myToday?.clock_in">
               Masuk {{ formatTime(hr.myToday.clock_in) }}
               <template v-if="hr.myToday.clock_out"> · Pulang {{ formatTime(hr.myToday.clock_out) }}</template>
             </template>
@@ -47,6 +46,7 @@
           </span>
         </div>
       </div>
+      <InlineAlert v-if="selfError" variant="destructive">{{ selfError }}</InlineAlert>
     </div>
 
     <!-- History -->
@@ -67,15 +67,14 @@
         <div v-for="i in 4" :key="i" class="skeleton h-[56px] rounded-xl" />
       </div>
 
-      <div
+      <EmptyState
         v-else-if="rows.length === 0"
-        class="bg-surface rounded-xl border border-border p-10 flex flex-col items-center text-center gap-3"
-      >
-        <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-          <CalendarCheck class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <p class="text-h3 text-foreground">Belum ada data absensi</p>
-      </div>
+        :icon="CalendarCheck"
+        size="compact"
+        title="Belum Ada Data Absensi"
+        description="Riwayat absensi akan muncul di sini setelah ada catatan masuk atau pulang."
+        class="bg-surface border border-border rounded-xl p-10"
+      />
 
       <div
         v-else
@@ -119,6 +118,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { CalendarCheck, CheckCircle2, LogIn, LogOut } from '@lucide/vue'
 import FilterSheet from '~/components/FilterSheet.vue'
 import EmployeeSectionTabs from '~/components/EmployeeSectionTabs.vue'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { useAuthStore } from '~/stores/auth'
 import { useHrStore } from '~/stores/hr'
 
@@ -126,6 +127,7 @@ useHead({ title: 'Absensi — Berdikari' })
 
 const auth = useAuthStore()
 const hr = useHrStore()
+const toast = useToast()
 
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
@@ -181,7 +183,7 @@ async function loadSelf() {
     await hr.fetchMyAttendance()
     selfError.value = ''
   } catch (err: any) {
-    selfError.value = err?.data?.message ?? 'Data absensi tidak tersedia.'
+    selfError.value = err?.data?.message ?? 'Data absensi kamu belum bisa dimuat. Coba muat ulang halaman ini, ya.'
   }
 }
 
@@ -189,11 +191,16 @@ async function doClock(direction: 'in' | 'out') {
   if (acting.value) return
   acting.value = true
   try {
-    if (direction === 'in') await hr.clockIn()
-    else await hr.clockOut()
+    if (direction === 'in') {
+      await hr.clockIn()
+      toast.success('Absen masuk tercatat')
+    } else {
+      await hr.clockOut()
+      toast.success('Absen pulang tercatat')
+    }
     await loadHistory()
   } catch (err: any) {
-    selfError.value = err?.data?.message ?? 'Gagal mencatat absensi. Coba lagi.'
+    selfError.value = err?.data?.message ?? 'Absensi belum tercatat. Coba lagi sebentar, ya.'
   } finally {
     acting.value = false
   }

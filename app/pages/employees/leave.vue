@@ -18,6 +18,36 @@
 
     <EmployeeSectionTabs current="leave" />
 
+    <!-- Kuota cuti tahunan (for leave.create permission holders) -->
+    <div v-if="auth.hasPermission('leave.create') && hr.myQuota">
+      <h2 class="text-h3 text-foreground mb-3">Kuota Cuti Tahunan {{ hr.myQuota.quota.year }}</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-surface rounded-xl border border-border p-4 shadow-elevation-1">
+          <p class="text-caption text-muted-foreground">Total Kuota</p>
+          <p class="text-h1 font-bold text-foreground tabular-nums mt-1">{{ hr.myQuota.quota.total_available }}</p>
+          <p class="text-caption text-muted-foreground">hari</p>
+        </div>
+        <div class="bg-surface rounded-xl border border-border p-4 shadow-elevation-1">
+          <p class="text-caption text-muted-foreground">Terpakai</p>
+          <p class="text-h1 font-bold text-foreground tabular-nums mt-1">{{ hr.myQuota.quota.used_days }}</p>
+          <p class="text-caption text-muted-foreground">hari</p>
+        </div>
+        <div class="bg-surface rounded-xl border border-border p-4 shadow-elevation-1">
+          <p class="text-caption text-muted-foreground">Menunggu</p>
+          <p class="text-h1 font-bold text-warning tabular-nums mt-1">{{ hr.myQuota.quota.pending_days }}</p>
+          <p class="text-caption text-muted-foreground">hari</p>
+        </div>
+        <div class="bg-primary/8 rounded-xl border border-primary/20 p-4">
+          <p class="text-caption text-primary/80">Sisa Kuota</p>
+          <p
+            class="text-h1 font-bold tabular-nums mt-1"
+            :class="hr.myQuota.quota.remaining_days <= 3 ? 'text-destructive' : hr.myQuota.quota.remaining_days <= 6 ? 'text-warning' : 'text-primary'"
+          >{{ hr.myQuota.quota.remaining_days }}</p>
+          <p class="text-caption text-primary/80">hari</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Approval queue (leave.approve) -->
     <div v-if="auth.hasPermission('leave.approve')">
       <h2 class="text-h3 text-foreground mb-3">Menunggu Persetujuan</h2>
@@ -52,7 +82,7 @@
           <div class="flex gap-2">
             <button
               :disabled="deciding === leave.id"
-              @click="decide(leave.id, 'approve')"
+              @click="decide(leave, 'approve')"
               class="flex-1 h-10 rounded-lg bg-success text-success-foreground text-small font-semibold hover:bg-success/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               <Check class="w-4 h-4" :stroke-width="2" />
@@ -60,7 +90,7 @@
             </button>
             <button
               :disabled="deciding === leave.id"
-              @click="decide(leave.id, 'reject')"
+              @click="decide(leave, 'reject')"
               class="flex-1 h-10 rounded-lg border border-border text-destructive text-small font-semibold hover:bg-destructive/10 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               <X class="w-4 h-4" :stroke-width="2" />
@@ -89,18 +119,14 @@
         <div v-for="i in 3" :key="i" class="skeleton h-[64px] rounded-xl" />
       </div>
 
-      <div
+      <EmptyState
         v-else-if="listedLeaves.length === 0"
-        class="bg-surface rounded-xl border border-border p-10 flex flex-col items-center text-center gap-3"
-      >
-        <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-          <CalendarDays class="w-6 h-6 text-muted-foreground" :stroke-width="1.5" />
-        </div>
-        <div>
-          <p class="text-h3 text-foreground">Belum ada pengajuan cuti</p>
-          <p v-if="selfError" class="text-body text-muted-foreground mt-1">{{ selfError }}</p>
-        </div>
-      </div>
+        :icon="CalendarDays"
+        size="compact"
+        title="Belum Ada Pengajuan Cuti"
+        :description="selfError || 'Ajukan cuti atau izin kapan saja lewat tombol di atas.'"
+        class="bg-surface border border-border rounded-xl p-10"
+      />
 
       <div
         v-else
@@ -158,6 +184,17 @@
               </button>
             </div>
           </div>
+          <!-- Quota reminder for annual leave -->
+          <div
+            v-if="form.type === 'annual' && hr.myQuota"
+            class="bg-muted/50 rounded-xl p-3 flex items-center justify-between"
+          >
+            <span class="text-small text-muted-foreground">Sisa kuota cuti tahunan</span>
+            <span
+              class="text-body font-bold tabular-nums"
+              :class="hr.myQuota.quota.remaining_days <= 3 ? 'text-destructive' : 'text-primary'"
+            >{{ hr.myQuota.quota.remaining_days }} hari</span>
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label for="leave-start" class="text-small text-muted-foreground">Mulai <span class="text-destructive">*</span></label>
@@ -172,7 +209,7 @@
             <label for="leave-reason" class="text-small text-muted-foreground">Alasan</label>
             <Input id="leave-reason" v-model="form.reason" class="mt-1 h-11" placeholder="opsional" />
           </div>
-          <p v-if="formError" class="text-small text-destructive" role="alert">{{ formError }}</p>
+          <InlineAlert v-if="formError" variant="destructive">{{ formError }}</InlineAlert>
         </form>
         <DrawerFooter>
           <div class="flex w-full gap-2">
@@ -192,6 +229,17 @@
         </DrawerFooter>
       </DrawerContent>
     </DrawerRoot>
+
+    <!-- Reject confirmation -->
+    <ConfirmDialog
+      v-model:open="confirmReject"
+      title="Tolak Pengajuan Cuti Ini?"
+      :description="`Pengajuan dari ${rejectTarget?.employee?.name ?? 'karyawan ini'} akan ditolak dan tidak bisa diproses ulang.`"
+      confirm-label="Ya, Tolak"
+      cancel-label="Batal"
+      :loading="deciding === rejectTarget?.id"
+      @confirm="confirmRejectAction"
+    />
   </div>
 </template>
 
@@ -211,14 +259,18 @@ import { buttonVariants } from '@/components/ui/button'
 import {
   DrawerContent, DrawerFooter, DrawerHeader, DrawerRoot, DrawerTitle,
 } from '@/components/ui/drawer'
+import { ConfirmDialog } from '~/components/ui/confirm-dialog'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 import { cn } from '@/utils'
 import { useAuthStore } from '~/stores/auth'
-import { useHrStore } from '~/stores/hr'
+import { useHrStore, type LeaveRequest } from '~/stores/hr'
 
 useHead({ title: 'Cuti & Izin — Berdikari' })
 
 const auth = useAuthStore()
 const hr = useHrStore()
+const toast = useToast()
 
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
 
@@ -227,6 +279,8 @@ const canViewAll = computed(() => auth.hasPermission('leave.view'))
 const loading = ref(true)
 const deciding = ref<string | null>(null)
 const selfError = ref('')
+const confirmReject = ref(false)
+const rejectTarget = ref<LeaveRequest | null>(null)
 
 const statusFilter = ref('semua')
 const statusOptions = [
@@ -266,6 +320,7 @@ async function load() {
       jobs.push(hr.fetchMyLeaves().catch((err: any) => {
         selfError.value = err?.data?.message ?? ''
       }))
+      jobs.push(hr.fetchMyQuota().catch(() => {}))
     }
     await Promise.all(jobs)
   } finally {
@@ -273,14 +328,36 @@ async function load() {
   }
 }
 
-async function decide(id: string, decision: 'approve' | 'reject') {
+function decide(leave: LeaveRequest, decision: 'approve' | 'reject') {
+  if (decision === 'reject') {
+    rejectTarget.value = leave
+    confirmReject.value = true
+    return
+  }
+  performDecide(leave.id, 'approve')
+}
+
+async function confirmRejectAction() {
+  if (!rejectTarget.value) return
+  await performDecide(rejectTarget.value.id, 'reject')
+}
+
+async function performDecide(id: string, decision: 'approve' | 'reject') {
   deciding.value = id
   try {
     await hr.decideLeave(id, decision)
+    toast.success(decision === 'approve' ? 'Pengajuan disetujui' : 'Pengajuan ditolak')
   } catch (err: any) {
-    selfError.value = err?.data?.message ?? 'Gagal memproses pengajuan.'
+    toast.error(
+      decision === 'approve' ? 'Pengajuan belum bisa disetujui' : 'Pengajuan belum bisa ditolak',
+      err?.data?.message ?? 'Coba lagi dalam beberapa saat, ya.',
+    )
   } finally {
     deciding.value = null
+    if (decision === 'reject') {
+      confirmReject.value = false
+      rejectTarget.value = null
+    }
   }
 }
 
@@ -314,9 +391,10 @@ async function submit() {
       reason: form.value.reason || undefined,
     })
     showForm.value = false
+    toast.success('Pengajuan cuti terkirim', 'Menunggu persetujuan atasan.')
     if (canViewAll.value) await hr.fetchLeaves()
   } catch (err: any) {
-    formError.value = err?.data?.message ?? 'Gagal mengirim pengajuan. Periksa tanggal dan coba lagi.'
+    formError.value = err?.data?.message ?? 'Pengajuan belum bisa dikirim. Periksa tanggal yang dipilih, lalu coba lagi, ya.'
   } finally {
     submitting.value = false
   }

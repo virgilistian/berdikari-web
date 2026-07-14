@@ -24,14 +24,51 @@
 
       <!-- Product rows -->
       <div class="space-y-2">
+        <div v-if="store.loading" class="space-y-2">
+          <div v-for="i in 5" :key="i" class="skeleton h-[72px] rounded-xl" />
+        </div>
+
+        <EmptyState
+          v-else-if="items.length === 0"
+          :icon="Package"
+          size="compact"
+          title="Belum Ada Produk Aktif"
+          description="Tambahkan produk di katalog agar bisa dicatat stok hariannya"
+          class="bg-surface border border-border rounded-xl"
+        >
+          <NuxtLink to="/catalog" class="text-small text-primary hover:underline">
+            Tambah produk di Katalog →
+          </NuxtLink>
+        </EmptyState>
+
         <div
           v-for="item in items"
           :key="item.product_id"
-          class="flex items-center gap-4 bg-surface rounded-xl border border-border px-4 py-3 hover:border-input transition-colors"
+          class="flex items-center gap-3 bg-surface rounded-xl border border-border px-4 py-3 hover:border-input transition-colors"
         >
-          <!-- Product name -->
+          <!-- Product image -->
+          <div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img
+              v-if="item.image_url"
+              :src="item.image_url"
+              :alt="item.product_name"
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+            <Package v-else class="w-5 h-5 text-muted-foreground" :stroke-width="1.5" />
+          </div>
+
+          <!-- Product info -->
           <div class="flex-1 min-w-0">
             <p class="text-h3 text-foreground truncate">{{ item.product_name }}</p>
+            <div class="flex items-center gap-3 mt-0.5">
+              <span v-if="item.price" class="text-caption text-muted-foreground tabular-nums">
+                {{ formatCurrency(item.price) }}
+              </span>
+              <span v-if="item.current_stock !== undefined" class="text-caption text-muted-foreground">
+                Stok: <span class="font-medium" :class="item.current_stock <= 5 ? 'text-warning' : 'text-foreground'">{{ item.current_stock }}</span>
+              </span>
+            </div>
           </div>
 
           <!-- Qty stepper + manual input -->
@@ -73,7 +110,7 @@
       </div>
 
       <!-- Error -->
-      <p v-if="store.error" class="text-small text-destructive">{{ store.error }}</p>
+      <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
 
       <!-- Desktop save button -->
       <div class="hidden md:block">
@@ -136,30 +173,32 @@ definePageMeta({
   permissions: ['inventory.create'],
 })
 
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Minus, Plus, Check, Loader2 } from '@lucide/vue'
-import { useDailyStockStore } from '~/stores/dailyStock'
+import { ArrowLeft, Minus, Plus, Check, Loader2, Package } from '@lucide/vue'
+import { useDailyStockStore, type ProductForStock } from '~/stores/dailyStock'
+import { EmptyState } from '~/components/ui/empty-state'
+import { InlineAlert } from '~/components/ui/inline-alert'
 
 const router = useRouter()
 const store = useDailyStockStore()
+const toast = useToast()
 
-const ALL_PRODUCTS = [
-  { id: 'p1',  name: 'Nasi Kucing Teri' },
-  { id: 'p2',  name: 'Nasi Kucing Tempe' },
-  { id: 'p3',  name: 'Sate Usus' },
-  { id: 'p4',  name: 'Sate Telur Puyuh' },
-  { id: 'p5',  name: 'Sate Ayam' },
-  { id: 'p6',  name: 'Gorengan Tempe' },
-  { id: 'p7',  name: 'Gorengan Tahu' },
-  { id: 'p8',  name: 'Es Teh Manis' },
-  { id: 'p9',  name: 'Kopi Hitam' },
-  { id: 'p10', name: 'Susu Jahe' },
-]
+interface StockItem {
+  product_id: string
+  product_name: string
+  price: number | null
+  image_url: string | null
+  current_stock: number
+  opening_qty: number
+}
 
-const items = ref(
-  ALL_PRODUCTS.map(p => ({ product_id: p.id, product_name: p.name, opening_qty: 0 }))
-)
+const items = ref<StockItem[]>([])
+
+function formatCurrency(value: number | null): string {
+  if (!value) return ''
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
+}
 
 const formattedDate = computed(() =>
   new Date(store.today ?? new Date()).toLocaleDateString('id-ID', {
@@ -171,11 +210,11 @@ const totalItems = computed(() => items.value.reduce((sum, i) => sum + (i.openin
 const nonZeroCount = computed(() => items.value.filter(i => i.opening_qty > 0).length)
 const canSave = computed(() => totalItems.value > 0)
 
-function decrease(item: { opening_qty: number }) {
+function decrease(item: StockItem) {
   if (item.opening_qty > 0) item.opening_qty--
 }
 
-function clampQty(item: { opening_qty: number }) {
+function clampQty(item: StockItem) {
   if (!item.opening_qty || item.opening_qty < 0) item.opening_qty = 0
   item.opening_qty = Math.floor(item.opening_qty)
 }
@@ -183,10 +222,27 @@ function clampQty(item: { opening_qty: number }) {
 async function save() {
   if (!canSave.value) return
   try {
-    await store.openDay(items.value)
+    await store.openDay(items.value.map(i => ({
+      product_id: i.product_id,
+      product_name: i.product_name,
+      opening_qty: i.opening_qty,
+    })))
+    toast.success('Stok hari ini dibuka', `${totalItems.value} pcs tercatat, siap untuk mulai jualan!`)
     router.push('/inventory')
   } catch {
     // error shown via store.error
   }
 }
+
+onMounted(async () => {
+  await store.fetchProducts()
+  items.value = store.products.map((p: ProductForStock) => ({
+    product_id: p.id,
+    product_name: p.name,
+    price: p.price,
+    image_url: p.image_url,
+    current_stock: p.current_stock,
+    opening_qty: 0,
+  }))
+})
 </script>

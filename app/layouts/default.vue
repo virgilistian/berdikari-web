@@ -157,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TopNav from '~/components/TopNav.vue'
 import { Bell, ChevronLeft, ChevronRight, LayoutGrid, LogOut } from '@lucide/vue'
 import {
@@ -167,12 +167,22 @@ import {
   DrawerTitle,
 } from '~/components/ui/drawer'
 import { useAuthStore } from '~/stores/auth'
+import { useNotificationStore } from '~/stores/notifications'
 import { navItems, mobileNavItems, mobileMoreItems } from '~/config/nav'
 
 const authStore = useAuthStore()
+const notifStore = useNotificationStore()
 const route = useRoute()
 const sidebarExpanded = ref(true)
 const showMoreSheet = ref(false)
+
+// Start notification polling when layout is mounted (authenticated context)
+onMounted(() => {
+  if (authStore.user) {
+    notifStore.startPolling(30_000)
+  }
+})
+onUnmounted(() => notifStore.stopPolling())
 
 /**
  * Only show nav items the authenticated user has permission to access.

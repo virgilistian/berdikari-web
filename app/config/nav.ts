@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
 import {
-  LayoutDashboard, ShoppingCart, Wallet, Package, Boxes, BarChart2, Settings, Users, ShieldCheck, UserCog, CalendarCheck
+  LayoutDashboard, ShoppingCart, Wallet, Package, Boxes, BarChart2, Settings, Users, ShieldCheck, UserCog, CalendarCheck, Clock,
 } from '@lucide/vue'
 
 export interface NavItem {
@@ -37,6 +37,12 @@ export const navItems: NavItem[] = [
     icon: ShoppingCart,
     label: 'Kasir',
     permissions: ['pos.view', 'pos.open'],
+  },
+  {
+    to: '/pos/shift',
+    icon: Clock,
+    label: 'Shift Kasir',
+    permissions: ['pos.open', 'pos.close'],
   },
   {
     to: '/finance',

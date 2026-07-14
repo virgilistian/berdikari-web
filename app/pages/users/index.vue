@@ -35,13 +35,13 @@
     <!-- User table -->
     <div v-else class="bg-surface rounded-xl border border-border shadow-elevation-1 overflow-hidden">
       <!-- Empty state -->
-      <div
+      <EmptyState
         v-if="users.length === 0"
-        class="flex flex-col items-center justify-center py-16 gap-3 text-center"
-      >
-        <Users class="w-10 h-10 text-muted-foreground" :stroke-width="1.5" />
-        <p class="text-body text-muted-foreground">Belum ada pengguna dalam bisnis ini.</p>
-      </div>
+        :icon="Users"
+        title="Belum Ada Pengguna"
+        description="Tambahkan anggota tim untuk mulai berbagi akses ke sistem ini."
+        size="compact"
+      />
 
       <!-- Table -->
       <div v-else class="overflow-x-auto">
@@ -149,14 +149,7 @@
             <!-- Modal form -->
             <form @submit.prevent="submitForm" class="px-5 py-4 space-y-4">
               <!-- Error alert -->
-              <div
-                v-if="formError"
-                class="flex items-start gap-2 px-3 py-2.5 bg-destructive/8 border border-destructive/20 rounded-lg"
-                role="alert"
-              >
-                <AlertCircle class="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" :stroke-width="1.75" />
-                <p class="text-body text-destructive">{{ formError }}</p>
-              </div>
+              <InlineAlert v-if="formError" variant="destructive">{{ formError }}</InlineAlert>
 
               <!-- Name -->
               <div class="space-y-1.5">
@@ -259,6 +252,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { Loader2, AlertCircle, Users, UserPlus, Pencil, Trash2, X } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InlineAlert } from '~/components/ui/inline-alert'
+import { EmptyState } from '~/components/ui/empty-state'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({
@@ -271,6 +266,7 @@ useHead({ title: 'Manajemen Pengguna — Berdikari' })
 
 const config = useRuntimeConfig()
 const auth = useAuthStore()
+const toast = useToast()
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 const today = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())
@@ -345,7 +341,7 @@ async function fetchUsers() {
     )
     users.value = res.data
   } catch (e: any) {
-    fetchError.value = e?.data?.message ?? 'Gagal memuat daftar pengguna.'
+    fetchError.value = e?.data?.message ?? 'Belum bisa memuat daftar pengguna. Coba muat ulang halaman ini.'
   } finally {
     loading.value = false
   }
@@ -401,12 +397,14 @@ async function submitForm() {
         headers: auth.getHeaders(),
         body,
       })
+      toast.success('Pengguna diperbarui', `Data "${form.name}" sudah tersimpan.`)
     } else {
       await $fetch(`${config.public.apiBase}/v1/users`, {
         method: 'POST',
         headers: auth.getHeaders(),
         body,
       })
+      toast.success('Pengguna ditambahkan', `"${form.name}" sekarang bisa masuk ke sistem.`)
     }
     closeModal()
     await fetchUsers()
@@ -415,7 +413,7 @@ async function submitForm() {
     if (msgs) {
       formError.value = Object.values(msgs).flat().join(' ')
     } else {
-      formError.value = e?.data?.message ?? 'Terjadi kesalahan. Coba lagi.'
+      formError.value = e?.data?.message ?? 'Pengguna belum bisa disimpan. Periksa lagi datanya, ya.'
     }
   } finally {
     submitting.value = false
@@ -434,15 +432,16 @@ async function executeDelete() {
   if (!deleteTarget.value) return
   deleting.value = true
   try {
+    const name = deleteTarget.value.name
     await $fetch(`${config.public.apiBase}/v1/users/${deleteTarget.value.id}`, {
       method: 'DELETE',
       headers: auth.getHeaders(),
     })
     deleteTarget.value = null
+    toast.success('Pengguna dihapus', `"${name}" tidak lagi memiliki akses ke sistem.`)
     await fetchUsers()
   } catch (e: any) {
-    // Show error briefly then clear target
-    alert(e?.data?.message ?? 'Gagal menghapus pengguna.')
+    toast.error('Belum bisa menghapus pengguna', e?.data?.message ?? 'Coba lagi beberapa saat lagi, ya.')
   } finally {
     deleting.value = false
   }

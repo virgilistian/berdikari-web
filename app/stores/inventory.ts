@@ -56,7 +56,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       rows.value = list.data
       summary.value = sum.data
     } catch (e: any) {
-      error.value = e?.data?.message ?? 'Gagal memuat stok.'
+      error.value = e?.data?.message ?? 'Stok belum bisa dimuat. Coba lagi sebentar, ya.'
       rows.value = []
       summary.value = null
     } finally {
@@ -66,29 +66,47 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   async function receive(productId: string, quantity: number, unitCost?: number, reason?: string) {
     const api = useApi()
-    await api('/v1/inventory/receive', {
-      method: 'POST',
-      body: { business_id: bid(), product_id: productId, quantity, unit_cost: unitCost, reason },
-    })
-    await fetchStock()
+    error.value = null
+    try {
+      await api('/v1/inventory/receive', {
+        method: 'POST',
+        body: { business_id: bid(), product_id: productId, quantity, unit_cost: unitCost, reason },
+      })
+      await fetchStock()
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Stok masuk belum bisa disimpan. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   async function adjust(productId: string, quantity: number, reason?: string) {
     const api = useApi()
-    await api('/v1/inventory/adjust', {
-      method: 'POST',
-      body: { business_id: bid(), product_id: productId, quantity, reason },
-    })
-    await fetchStock()
+    error.value = null
+    try {
+      await api('/v1/inventory/adjust', {
+        method: 'POST',
+        body: { business_id: bid(), product_id: productId, quantity, reason },
+      })
+      await fetchStock()
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Penyesuaian stok belum bisa disimpan. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   async function setMinStock(productId: string, minStock: number) {
     const api = useApi()
-    await api(`/v1/inventory/${productId}/min-stock`, {
-      method: 'PUT',
-      body: { business_id: bid(), min_stock: minStock },
-    })
-    await fetchStock()
+    error.value = null
+    try {
+      await api(`/v1/inventory/${productId}/min-stock`, {
+        method: 'PUT',
+        body: { business_id: bid(), min_stock: minStock },
+      })
+      await fetchStock()
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Ambang batas stok belum bisa disimpan. Coba lagi sebentar, ya.'
+      throw e
+    }
   }
 
   async function fetchMovements(productId: string) {

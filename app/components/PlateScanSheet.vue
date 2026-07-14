@@ -152,7 +152,7 @@ async function optimizeImage(file: File): Promise<File> {
 async function scan() {
   if (!imageFile) return
   if (import.meta.client && !navigator.onLine) {
-    errorMessage.value = 'Pindai piring membutuhkan koneksi internet. Tambahkan item secara manual saat offline.'
+    errorMessage.value = 'Pindai piring butuh koneksi internet. Sementara ini, tambahkan item secara manual dulu, ya.'
     step.value = 'error'
     return
   }
@@ -180,7 +180,7 @@ async function scan() {
       ], [{ detected_name: 'Kerupuk', quantity: 1 }])
     }
     else {
-      errorMessage.value = 'Pemindaian gagal. Periksa koneksi dan coba lagi.'
+      errorMessage.value = 'Coba periksa koneksi internet kamu, lalu coba pindai lagi.'
       step.value = 'error'
     }
   }
@@ -312,7 +312,7 @@ function addToOrder() {
             <AlertCircle class="h-7 w-7 text-destructive" :stroke-width="1.75" />
           </div>
           <div>
-            <p class="text-h2 text-foreground">Pemindaian Gagal</p>
+            <p class="text-h2 text-foreground">Yah, Pemindaian Belum Berhasil</p>
             <p class="mt-1 text-body text-muted-foreground">{{ errorMessage }}</p>
           </div>
           <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'gap-2')" @click="step = 'preview'">

@@ -32,6 +32,12 @@ export interface BusinessOption {
   name: string
 }
 
+export interface FinanceCategory {
+  id: string
+  name: string
+  type: 'income' | 'expense'
+}
+
 export interface FinanceEntry {
   id: string
   type: 'income' | 'expense'
@@ -59,6 +65,7 @@ export const useFinanceStore = defineStore('finance', () => {
   const entries = ref<FinanceEntry[]>([])
   const summary = ref<FinanceSummary | null>(null)
   const businesses = ref<BusinessOption[]>([])
+  const categories = ref<FinanceCategory[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -70,7 +77,7 @@ export const useFinanceStore = defineStore('finance', () => {
       const res = await api<{ data: FinanceEntry[] }>('/v1/finance', { query: filters })
       entries.value = res.data
     } catch (e: any) {
-      error.value = e?.data?.message ?? 'Gagal memuat transaksi.'
+      error.value = e?.data?.message ?? 'Transaksi belum bisa dimuat. Coba lagi sebentar, ya.'
       entries.value = []
     } finally {
       loading.value = false
@@ -116,8 +123,40 @@ export const useFinanceStore = defineStore('finance', () => {
     entries.value = entries.value.filter(e => e.id !== id)
   }
 
+  async function fetchCategories() {
+    try {
+      const api = useApi()
+      const res = await api<{ data: FinanceCategory[] }>('/v1/finance/categories')
+      categories.value = res.data
+    } catch {
+      categories.value = []
+    }
+  }
+
+  async function createCategory(data: { name: string; type: 'income' | 'expense' }) {
+    const api = useApi()
+    const res = await api<{ data: FinanceCategory }>('/v1/finance/categories', { method: 'POST', body: data })
+    categories.value.push(res.data)
+    return res.data
+  }
+
+  async function updateCategory(id: string, name: string) {
+    const api = useApi()
+    const res = await api<{ data: FinanceCategory }>(`/v1/finance/categories/${id}`, { method: 'PUT', body: { name } })
+    const idx = categories.value.findIndex(c => c.id === id)
+    if (idx !== -1) categories.value[idx] = res.data
+    return res.data
+  }
+
+  async function deleteCategory(id: string) {
+    const api = useApi()
+    await api(`/v1/finance/categories/${id}`, { method: 'DELETE' })
+    categories.value = categories.value.filter(c => c.id !== id)
+  }
+
   return {
-    entries, summary, businesses, loading, error,
+    entries, summary, businesses, categories, loading, error,
     fetchEntries, fetchSummary, fetchBusinesses, createEntry, deleteEntry,
+    fetchCategories, createCategory, updateCategory, deleteCategory,
   }
 })

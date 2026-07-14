@@ -46,6 +46,9 @@ export const PermissionSeeder: string[] = [
   'leave.create',
   'leave.approve',
 
+  // Notifications / Notifikasi
+  'notification.view',
+
   // Roles & Users
   'role.assign',
   'user.manage',
