@@ -180,6 +180,10 @@ export const useTaxStore = defineStore('tax', () => {
     return res.data
   }
 
+  function clearCurrentReport() {
+    currentReport.value = null
+  }
+
   /**
    * Local recompute mirroring the backend formula, for instant feedback
    * while editing — the authoritative recompute still happens server-side
@@ -240,6 +244,6 @@ export const useTaxStore = defineStore('tax', () => {
   return {
     businessTypes, profiles, assets, history, currentReport, loading, error,
     fetchBusinessTypes, fetchProfiles, saveProfile, fetchAssets, uploadAsset, removeAsset,
-    generate, fetchHistory, fetchReport, updateEntry, saveReport, deleteReport, printPdf,
+    generate, fetchHistory, fetchReport, clearCurrentReport, updateEntry, saveReport, deleteReport, printPdf,
   }
 })

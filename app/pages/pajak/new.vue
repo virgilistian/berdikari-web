@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { InlineAlert } from '@/components/ui/inline-alert'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { formatRupiah } from '@/utils'
+import { formatRupiah, MONTH_NAMES_ID } from '@/utils'
 import { useTaxStore } from '@/stores/tax'
 import { useAuthStore } from '~/stores/auth'
 
@@ -22,20 +22,26 @@ const auth = useAuthStore()
 const toast = useToast()
 
 const selectedType = ref('')
-const monthInput = ref('')
+const selectedMonth = ref(new Date().getMonth() + 1)
+const selectedYear = ref(new Date().getFullYear())
 const generating = ref(false)
 const saving = ref(false)
 const printing = ref(false)
 const showRegenerateConfirm = ref(false)
+const showSwitchTypeConfirm = ref(false)
+const pendingType = ref('')
 const errorMsg = ref('')
+
+const yearOptions = computed(() => {
+  const current = new Date().getFullYear()
+  return Array.from({ length: 5 }, (_, i) => current - i)
+})
 
 onMounted(async () => {
   await Promise.all([taxStore.fetchBusinessTypes(), taxStore.fetchProfiles()])
   if (taxStore.profiles.length > 0 && !selectedType.value) {
     selectedType.value = taxStore.profiles[0]!.business_type
   }
-  const now = new Date()
-  monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 })
 
 const typeLabel = (type: string) => taxStore.businessTypes.find(t => t.key === type)?.label ?? type
@@ -45,18 +51,15 @@ const columns = computed(() => {
   return taxStore.businessTypes.find(t => t.key === type)?.columns ?? []
 })
 
-const canGenerate = computed(() => !!selectedType.value && !!monthInput.value && !generating.value)
+const canGenerate = computed(() => !!selectedType.value && !generating.value)
 
 async function runGenerate() {
-  if (!selectedType.value || !monthInput.value) return
-  const parts = monthInput.value.split('-').map(Number)
-  const year = parts[0]!
-  const month = parts[1]!
+  if (!selectedType.value) return
 
   generating.value = true
   errorMsg.value = ''
   try {
-    await taxStore.generate(selectedType.value, month, year)
+    await taxStore.generate(selectedType.value, selectedMonth.value, selectedYear.value)
   } catch (e: any) {
     errorMsg.value = e?.data?.message ?? 'Data pajak belum bisa dibuat. Coba lagi sebentar, ya.'
   } finally {
@@ -71,6 +74,24 @@ function confirmRegenerate() {
 async function regenerate() {
   showRegenerateConfirm.value = false
   await runGenerate()
+}
+
+// Each business type has its own generation rules — switching types while a
+// report is already on screen must not silently keep stale data around.
+function selectType(type: string) {
+  if (type === selectedType.value) return
+  if (taxStore.currentReport) {
+    pendingType.value = type
+    showSwitchTypeConfirm.value = true
+  } else {
+    selectedType.value = type
+  }
+}
+
+function confirmSwitchType() {
+  selectedType.value = pendingType.value
+  taxStore.clearCurrentReport()
+  showSwitchTypeConfirm.value = false
 }
 
 async function save(finalize = false) {
@@ -147,20 +168,30 @@ function onEntryUpdate(dayNumber: number, patch: Record<string, number>) {
             :class="selectedType === profile.business_type
               ? 'bg-primary text-primary-foreground border-primary'
               : 'bg-background text-muted-foreground border-input hover:border-primary'"
-            @click="selectedType = profile.business_type"
+            @click="selectType(profile.business_type)"
           >
             {{ typeLabel(profile.business_type) }}
           </button>
         </div>
 
         <div class="space-y-1.5">
-          <label for="tax-month" class="text-h3 text-foreground">Bulan &amp; Tahun</label>
-          <input
-            id="tax-month"
-            v-model="monthInput"
-            type="month"
-            class="w-full h-11 px-3 rounded-lg border border-input bg-background text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
-          >
+          <label class="text-h3 text-foreground">Bulan &amp; Tahun</label>
+          <div class="grid grid-cols-2 gap-2">
+            <select
+              v-model.number="selectedMonth"
+              aria-label="Pilih bulan"
+              class="w-full h-11 px-3 rounded-lg border border-input bg-background text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
+            >
+              <option v-for="(name, idx) in MONTH_NAMES_ID" :key="name" :value="idx + 1">{{ name }}</option>
+            </select>
+            <select
+              v-model.number="selectedYear"
+              aria-label="Pilih tahun"
+              class="w-full h-11 px-3 rounded-lg border border-input bg-background text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
+            >
+              <option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
+            </select>
+          </div>
         </div>
 
         <Button class="w-full gap-2" :disabled="!canGenerate" @click="runGenerate">
@@ -259,6 +290,15 @@ function onEntryUpdate(dayNumber: number, patch: Record<string, number>) {
       variant="destructive"
       confirm-label="Ya, Generate Ulang"
       @confirm="regenerate"
+    />
+
+    <ConfirmDialog
+      v-model:open="showSwitchTypeConfirm"
+      title="Ganti Jenis Usaha?"
+      description="Data pajak yang sudah dibuat akan dihapus dari pratinjau ini. Setiap jenis usaha punya aturan generate yang berbeda, jadi Anda perlu generate ulang setelah berpindah."
+      variant="destructive"
+      confirm-label="Ya, Ganti Jenis Usaha"
+      @confirm="confirmSwitchType"
     />
   </div>
 </template>

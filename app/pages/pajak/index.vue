@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, FileText, Printer, Receipt } from '@lucide/vue'
 import { InlineAlert } from '@/components/ui/inline-alert'
 import { EmptyState } from '@/components/ui/empty-state'
-import { formatRupiah } from '@/utils'
+import { formatRupiah, MONTH_NAMES_ID } from '@/utils'
 import { useTaxStore } from '@/stores/tax'
 import { useAuthStore } from '~/stores/auth'
 
@@ -17,7 +17,7 @@ useHead({ title: 'Pajak — Berdikari' })
 const taxStore = useTaxStore()
 const auth = useAuthStore()
 
-const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+const MONTH_NAMES = MONTH_NAMES_ID
 
 const activeType = ref<string>('')
 const activeYear = ref<number>(new Date().getFullYear())
