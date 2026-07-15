@@ -79,7 +79,7 @@ async function printPdf() {
 </script>
 
 <template>
-  <div class="p-4 md:p-6 max-w-2xl mx-auto pb-28 md:pb-6 space-y-5">
+  <div class="p-4 md:p-6 max-w-2xl mx-auto pb-28 md:pb-6 space-y-4">
     <div class="flex items-center gap-2 -ml-1">
       <button
         class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-shrink-0"
@@ -99,12 +99,12 @@ async function printPdf() {
     </div>
 
     <template v-else-if="taxStore.currentReport">
-      <div class="grid grid-cols-2 gap-3">
-        <div class="bg-surface rounded-xl border border-border p-4">
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="bg-surface rounded-xl border border-border p-3.5">
           <p class="text-small text-muted-foreground">Total Penjualan</p>
           <p class="text-h2 font-bold text-foreground tabular-nums mt-1">{{ formatRupiah(taxStore.currentReport.total_sales) }}</p>
         </div>
-        <div class="bg-primary/8 rounded-xl border border-primary/20 p-4">
+        <div class="bg-primary/8 rounded-xl border border-primary/20 p-3.5">
           <p class="text-small text-muted-foreground">Total Pajak (10%)</p>
           <p class="text-h2 font-bold text-primary tabular-nums mt-1">{{ formatRupiah(taxStore.currentReport.total_tax) }}</p>
         </div>

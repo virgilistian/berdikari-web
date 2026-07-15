@@ -61,7 +61,7 @@ function statusLabel(status: string) {
 </script>
 
 <template>
-  <div class="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
+  <div class="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
     <div class="flex items-start justify-between pt-1">
       <div>
         <p class="text-small text-muted-foreground">{{ formattedDate }}</p>
@@ -118,11 +118,11 @@ function statusLabel(status: string) {
       </NuxtLink>
     </EmptyState>
 
-    <div v-else class="space-y-2">
+    <div v-else class="space-y-1.5">
       <div
         v-for="report in taxStore.history"
         :key="report.id"
-        class="bg-surface rounded-xl border border-border p-4 flex items-center justify-between gap-3"
+        class="bg-surface rounded-xl border border-border p-3.5 flex items-center justify-between gap-3"
       >
         <NuxtLink :to="`/pajak/${report.id}`" class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
