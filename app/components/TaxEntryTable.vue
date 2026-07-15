@@ -55,9 +55,34 @@ function maskedValue(entry: TaxReportEntry, col: ColumnMeta): string {
 
 function onMaskedInput(entry: TaxReportEntry, col: ColumnMeta, event: Event) {
   const target = event.target as HTMLInputElement
+  const rawCursor = target.selectionStart ?? target.value.length
+  // Count digits (not mask separators) left of the caret in the value as the
+  // browser already edited it, so re-formatting below can restore the caret
+  // next to the same digit instead of always snapping it to the end.
+  const digitsBeforeCursor = target.value.slice(0, rawCursor).replace(/[^0-9]/g, '').length
+
   const digits = target.value.replace(/[^0-9]/g, '')
   const value = digits ? parseInt(digits, 10) : 0
-  target.value = value.toLocaleString('id-ID')
+  const formatted = value.toLocaleString('id-ID')
+  target.value = formatted
+
+  let newCursor = formatted.length
+  if (digitsBeforeCursor > 0) {
+    let seen = 0
+    for (let i = 0; i < formatted.length; i++) {
+      if (/[0-9]/.test(formatted[i]!)) {
+        seen++
+        if (seen === digitsBeforeCursor) {
+          newCursor = i + 1
+          break
+        }
+      }
+    }
+  } else {
+    newCursor = 0
+  }
+  target.setSelectionRange(newCursor, newCursor)
+
   emit('update', entry.day_number, { [col.key]: value })
 }
 </script>
