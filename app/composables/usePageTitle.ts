@@ -15,7 +15,10 @@ export function usePageTitle() {
     '/inventory':     'Stok',
     '/inventory/new': 'Stok Harian Baru',
     '/reports':       'Laporan',
+    '/pajak':         'Pajak',
+    '/pajak/new':     'Buat Pajak',
     '/settings':      'Pengaturan',
+    '/settings/pajak': 'Pengaturan Pajak',
   }
 
   const pageTitle = computed<string>(() => {
