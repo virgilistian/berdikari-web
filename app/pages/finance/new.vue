@@ -78,6 +78,22 @@
       </div>
     </div>
 
+    <!-- Transaction date -->
+    <div class="bg-surface rounded-xl border border-border p-5 space-y-2 shadow-elevation-1">
+      <label for="transaction-date-input" class="text-small text-muted-foreground block">
+        Tanggal transaksi
+      </label>
+      <Input
+        id="transaction-date-input"
+        v-model="transactionDate"
+        type="date"
+        :max="todayDateString"
+        required
+        class="w-full"
+        aria-label="Tanggal transaksi"
+      />
+    </div>
+
     <!-- ── EXPENSE FORM ── -->
     <template v-if="formMode === 'expense'">
 
@@ -418,6 +434,7 @@ import { ArrowLeft, Check, CheckCircle2, Loader2, Plus, X } from '@lucide/vue'
 import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '~/stores/finance'
 import { useAuthStore } from '~/stores/auth'
 import { InlineAlert } from '~/components/ui/inline-alert'
+import { Input } from '~/components/ui/input'
 
 const router = useRouter()
 const financeStore = useFinanceStore()
@@ -456,6 +473,16 @@ const savedSource = ref('')
 const savedMode = ref<'expense' | 'income'>('expense')
 const saveError = ref<string | null>(null)
 
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const todayDateString = toDateInputValue(new Date())
+const transactionDate = ref(todayDateString)
+
 const formMode = ref<'expense' | 'income'>('expense')
 
 const expenseForm = ref({ category: '', notes: '' })
@@ -475,6 +502,7 @@ const numericAmount = computed(() => {
 
 const isFormValid = computed(() => {
   if (numericAmount.value <= 0) return false
+  if (!transactionDate.value || transactionDate.value > todayDateString) return false
   return formMode.value === 'expense'
     ? expenseForm.value.category !== ''
     : incomeForm.value.category !== ''
@@ -556,6 +584,7 @@ async function save() {
       category,
       note: note || undefined,
       business_id: selectedBusinessId.value ?? undefined,
+      occurred_at: transactionDate.value,
     })
 
     savedAmount.value = numericAmount.value
@@ -574,6 +603,7 @@ function recordAnother() {
   displayAmount.value = ''
   expenseForm.value = { category: '', notes: '' }
   incomeForm.value = { category: '', notes: '' }
+  transactionDate.value = todayDateString
   saveError.value = null
   saved.value = false
   amountInput.value?.focus()

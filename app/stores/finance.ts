@@ -110,6 +110,7 @@ export const useFinanceStore = defineStore('finance', () => {
     category: string
     note?: string
     business_id?: string
+    occurred_at?: string
   }) {
     const api = useApi()
     const res = await api<{ data: FinanceEntry }>('/v1/finance', { method: 'POST', body: data })
