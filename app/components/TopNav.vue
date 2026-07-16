@@ -28,6 +28,9 @@
     <!-- Right: actions -->
     <div class="flex items-center gap-1 flex-shrink-0">
 
+      <!-- Business switcher (only rendered once the user has >1 business) -->
+      <BusinessSwitcher />
+
       <!-- Theme toggle -->
       <button
         @click="toggleTheme"
@@ -278,6 +281,7 @@ import {
 import { useAuthStore } from '~/stores/auth'
 import { useNotificationStore } from '~/stores/notifications'
 import { usePageTitle } from '~/composables/usePageTitle'
+import BusinessSwitcher from '~/components/BusinessSwitcher.vue'
 
 // ── Props & Emits ────────────────────────────────────────────────────────────
 const props = defineProps<{

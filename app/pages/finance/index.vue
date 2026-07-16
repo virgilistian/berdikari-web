@@ -57,14 +57,7 @@
           default-value="Semua"
         />
 
-        <FilterSheet
-          v-if="businessOptions.length > 1"
-          v-model="activeBusiness"
-          title="Pilih bisnis"
-          trigger-label="Bisnis"
-          :options="businessOptions"
-          default-value="Semua"
-        />
+        <BusinessSwitcher variant="chip" />
       </div>
 
       <!-- Summary cards -->
@@ -226,19 +219,28 @@ definePageMeta({
 import { ref, computed, watch, onMounted } from 'vue'
 import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'
+import { useAuthStore } from '~/stores/auth'
 import { formatRupiah } from '~/utils'
 import { Input } from '@/components/ui/input'
 import FilterSheet from '@/components/FilterSheet.vue'
+import BusinessSwitcher from '@/components/BusinessSwitcher.vue'
 import { InlineAlert } from '~/components/ui/inline-alert'
 import { EmptyState } from '~/components/ui/empty-state'
 
 const financeStore = useFinanceStore()
+const authStore = useAuthStore()
 
-onMounted(() => {
+function loadFinanceData() {
   financeStore.fetchEntries()
   financeStore.fetchSummary()
-  financeStore.fetchBusinesses()
-})
+}
+
+onMounted(loadFinanceData)
+
+// The Business filter (chip in the row above) switches the user's active
+// business — everything here is already business-scoped server-side, so a
+// switch just needs a refetch instead of client-side filtering.
+watch(() => authStore.user?.business_id, loadFinanceData)
 
 const formattedDate = computed(() =>
   new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()),
@@ -360,29 +362,9 @@ const categoryOptions = computed(() =>
   availableCategories.value.map(cat => ({ value: cat, label: cat })),
 )
 
-// ─── Business filter ──────────────────────────────────────────────────────────
-const activeBusiness = ref('Semua')
-
-const availableBusinessNames = computed(() => {
-  const names = new Set(
-    periodFilteredTransactions.value.map(t => t.businessName).filter(Boolean) as string[],
-  )
-  return ['Semua', ...Array.from(names).sort()]
-})
-
-const businessOptions = computed(() =>
-  availableBusinessNames.value.map(name => ({ value: name, label: name })),
-)
-
 const filteredTransactions = computed<Transaction[]>(() => {
-  let result = periodFilteredTransactions.value
-  if (activeCategory.value !== 'Semua') {
-    result = result.filter(t => t.category === activeCategory.value)
-  }
-  if (activeBusiness.value !== 'Semua') {
-    result = result.filter(t => t.businessName === activeBusiness.value)
-  }
-  return result
+  if (activeCategory.value === 'Semua') return periodFilteredTransactions.value
+  return periodFilteredTransactions.value.filter(t => t.category === activeCategory.value)
 })
 
 // ─── Filtered summaries ─────────────────────────────────────────────────────

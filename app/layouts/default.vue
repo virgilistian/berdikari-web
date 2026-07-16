@@ -68,9 +68,10 @@
           </div>
           <span class="font-semibold text-foreground text-h3">Berdikari</span>
         </div>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1 min-w-0">
+          <BusinessSwitcher />
           <button
-            class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+            class="w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-shrink-0"
             aria-label="Notifikasi"
           >
             <Bell class="w-5 h-5" :stroke-width="1.75" />
@@ -159,6 +160,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TopNav from '~/components/TopNav.vue'
+import BusinessSwitcher from '~/components/BusinessSwitcher.vue'
 import { Bell, ChevronLeft, ChevronRight, LayoutGrid, LogOut } from '@lucide/vue'
 import {
   DrawerContent,

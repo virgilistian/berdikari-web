@@ -111,10 +111,20 @@ export const useFinanceStore = defineStore('finance', () => {
     note?: string
     business_id?: string
     occurred_at?: string
+    shift_id?: string
   }) {
     const api = useApi()
     const res = await api<{ data: FinanceEntry }>('/v1/finance', { method: 'POST', body: data })
-    await fetchEntries()
+    if (!data.shift_id) await fetchEntries()
+    return res.data
+  }
+
+  /** Operational expenses recorded against a specific cashier shift (does not touch the global `entries` list). */
+  async function fetchShiftExpenses(shiftId: string): Promise<FinanceEntry[]> {
+    const api = useApi()
+    const res = await api<{ data: FinanceEntry[] }>('/v1/finance', {
+      query: { source_type: 'shift_expense', source_id: shiftId },
+    })
     return res.data
   }
 
@@ -158,6 +168,6 @@ export const useFinanceStore = defineStore('finance', () => {
   return {
     entries, summary, businesses, categories, loading, error,
     fetchEntries, fetchSummary, fetchBusinesses, createEntry, deleteEntry,
-    fetchCategories, createCategory, updateCategory, deleteCategory,
+    fetchCategories, createCategory, updateCategory, deleteCategory, fetchShiftExpenses,
   }
 })

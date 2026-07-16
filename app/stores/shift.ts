@@ -2,6 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 
+export interface ShiftStockSummaryItem {
+  product_id: string
+  product_name: string
+  opening_qty: number
+  sold_qty: number
+  adjustment_qty: number
+  adjustment_note: string | null
+  closing_qty: number
+}
+
 export interface CashierShift {
   id: string
   business_id: string
@@ -13,7 +23,10 @@ export interface CashierShift {
   cash_difference: number | null
   transaction_count: number
   total_sales: number
+  total_expenses: number
+  net_income: number | null
   payment_breakdown: Record<string, number> | null
+  stock_summary: ShiftStockSummaryItem[] | null
   closing_note: string | null
   opened_at: string
   closed_at: string | null

@@ -65,6 +65,24 @@
         </div>
       </NuxtLink>
 
+      <!-- Business Management (if permitted) -->
+      <NuxtLink
+        v-if="auth.hasPermission('business.manage')"
+        to="/settings/business"
+        class="group bg-surface rounded-xl border border-border shadow-elevation-1 p-5 hover:shadow-elevation-2 hover:border-primary/30 transition-all duration-200"
+      >
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+            <Store class="w-5.5 h-5.5 text-primary" :stroke-width="1.75" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-h3 text-foreground group-hover:text-primary transition-colors">Manajemen Bisnis</h2>
+            <p class="text-small text-muted-foreground mt-1">Kelola profil usaha dan cabang.</p>
+          </div>
+          <ChevronRight class="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-0.5" :stroke-width="1.75" />
+        </div>
+      </NuxtLink>
+
       <!-- Tax / Pajak settings (if permitted) -->
       <NuxtLink
         v-if="auth.hasPermission('tax.manage')"
@@ -105,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { UserCircle, KeyRound, Users, ShieldCheck, ChevronRight, Receipt } from '@lucide/vue'
+import { UserCircle, KeyRound, Users, ShieldCheck, ChevronRight, Receipt, Store } from '@lucide/vue'
 import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({
