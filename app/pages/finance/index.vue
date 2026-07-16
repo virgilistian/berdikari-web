@@ -178,14 +178,24 @@
                 </p>
               </div>
             </div>
-            <div class="flex flex-col items-end flex-shrink-0 ml-4">
-              <p
-                class="text-body font-semibold tabular-nums"
-                :class="tx.type === 'income' ? 'text-success' : 'text-destructive'"
+            <div class="flex items-center gap-1 flex-shrink-0 ml-4">
+              <div class="flex flex-col items-end">
+                <p
+                  class="text-body font-semibold tabular-nums"
+                  :class="tx.type === 'income' ? 'text-success' : 'text-destructive'"
+                >
+                  {{ tx.type === 'income' ? '+' : '−' }}Rp {{ tx.amount.toLocaleString('id-ID') }}
+                </p>
+                <p class="text-small text-muted-foreground tabular-nums">{{ formatTime(new Date(tx.createdAt)) }}</p>
+              </div>
+              <button
+                v-if="canDelete && !tx.isAuto"
+                @click="confirmDelete(tx)"
+                class="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
+                :aria-label="`Hapus transaksi ${tx.category}`"
               >
-                {{ tx.type === 'income' ? '+' : '−' }}Rp {{ tx.amount.toLocaleString('id-ID') }}
-              </p>
-              <p class="text-small text-muted-foreground tabular-nums">{{ formatTime(new Date(tx.createdAt)) }}</p>
+                <Trash2 class="w-4 h-4" :stroke-width="1.75" />
+              </button>
             </div>
           </div>
         </div>
@@ -207,6 +217,16 @@
         </button>
       </NuxtLink>
     </div>
+
+    <ConfirmDialog
+      v-model:open="showDeleteConfirm"
+      title="Hapus Transaksi Ini?"
+      :description="deleteConfirmDescription"
+      confirm-label="Ya, Hapus"
+      cancel-label="Batal"
+      :loading="deleting"
+      @confirm="performDelete"
+    />
   </div>
 </template>
 
@@ -217,7 +237,7 @@ definePageMeta({
 })
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown } from '@lucide/vue'
+import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Trash2 } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'
 import { useAuthStore } from '~/stores/auth'
 import { formatRupiah } from '~/utils'
@@ -226,9 +246,13 @@ import FilterSheet from '@/components/FilterSheet.vue'
 import BusinessSwitcher from '@/components/BusinessSwitcher.vue'
 import { InlineAlert } from '~/components/ui/inline-alert'
 import { EmptyState } from '~/components/ui/empty-state'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const financeStore = useFinanceStore()
 const authStore = useAuthStore()
+const toast = useToast()
+
+const canDelete = computed(() => authStore.hasPermission('finance.delete'))
 
 function loadFinanceData() {
   financeStore.fetchEntries()
@@ -409,5 +433,33 @@ function formatTime(date: Date): string {
     return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(date)
   }
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' }).format(date)
+}
+
+// ─── Delete transaction ───────────────────────────────────────────────────────
+const showDeleteConfirm = ref(false)
+const deleteTarget = ref<Transaction | null>(null)
+const deleting = ref(false)
+
+const deleteConfirmDescription = computed(() =>
+  `Transaksi "${deleteTarget.value?.category ?? ''}" akan dihapus dan tidak bisa dikembalikan.`,
+)
+
+function confirmDelete(tx: Transaction) {
+  deleteTarget.value = tx
+  showDeleteConfirm.value = true
+}
+
+async function performDelete() {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  try {
+    await financeStore.deleteEntry(deleteTarget.value.id)
+    toast.success('Transaksi dihapus', `Transaksi "${deleteTarget.value.category}" berhasil dihapus.`)
+    showDeleteConfirm.value = false
+  } catch (e: any) {
+    toast.error('Transaksi belum bisa dihapus', e?.data?.message ?? 'Coba lagi sebentar, ya.')
+  } finally {
+    deleting.value = false
+  }
 }
 </script>
