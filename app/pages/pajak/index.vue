@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, FileText, Printer, Receipt } from '@lucide/vue'
+import { Plus, FileText, Printer, Receipt, HelpCircle } from '@lucide/vue'
 import { InlineAlert } from '@/components/ui/inline-alert'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatRupiah, MONTH_NAMES_ID } from '@/utils'
@@ -74,6 +74,15 @@ function statusLabel(status: string) {
         </button>
       </NuxtLink>
     </div>
+
+    <NuxtLink
+      v-if="auth.hasPermission('tax.export')"
+      to="/pajak/panduan-ekstensi"
+      class="inline-flex items-center gap-1.5 text-caption text-muted-foreground hover:text-primary transition-colors"
+    >
+      <HelpCircle class="w-3.5 h-3.5" :stroke-width="1.75" />
+      Panduan pasang ekstensi Isi Otomatis SIPADI
+    </NuxtLink>
 
     <InlineAlert v-if="taxStore.error" variant="destructive">{{ taxStore.error }}</InlineAlert>
 

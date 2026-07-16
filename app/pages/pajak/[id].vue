@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ArrowLeft, Printer, Save, Loader2 } from '@lucide/vue'
+import { ArrowLeft, Printer, Save, Loader2, PlugZap, HelpCircle } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { InlineAlert } from '@/components/ui/inline-alert'
 import { formatRupiah, MONTH_NAMES_ID } from '@/utils'
 import { useTaxStore } from '@/stores/tax'
 import { useAuthStore } from '~/stores/auth'
+import { useSipadiAutofill } from '@/composables/useSipadiAutofill'
 
 definePageMeta({
   middleware: ['auth', 'permission'],
@@ -19,6 +20,7 @@ const router = useRouter()
 const taxStore = useTaxStore()
 const auth = useAuthStore()
 const toast = useToast()
+const { autofilling, fillSipadi } = useSipadiAutofill()
 
 const MONTH_NAMES = MONTH_NAMES_ID
 
@@ -76,6 +78,11 @@ async function printPdf() {
     printing.value = false
   }
 }
+
+async function autofillSipadi() {
+  if (!taxStore.currentReport) return
+  await fillSipadi(taxStore.currentReport, typeLabel.value ?? taxStore.currentReport.business_type)
+}
 </script>
 
 <template>
@@ -132,6 +139,16 @@ async function printPdf() {
         </Button>
         <Button
           v-if="auth.hasPermission('tax.export')"
+          variant="outline"
+          class="flex-1 gap-2"
+          :disabled="autofilling"
+          @click="autofillSipadi"
+        >
+          <PlugZap class="w-4 h-4" :stroke-width="1.75" />
+          {{ autofilling ? 'Mengisi SIPADI...' : 'Isi Otomatis SIPADI' }}
+        </Button>
+        <Button
+          v-if="auth.hasPermission('tax.export')"
           class="flex-1 gap-2"
           :disabled="printing"
           @click="printPdf"
@@ -139,6 +156,13 @@ async function printPdf() {
           <Printer class="w-4 h-4" :stroke-width="1.75" />
           {{ printing ? 'Menyiapkan...' : 'Cetak Ulang PDF' }}
         </Button>
+      </div>
+
+      <div v-if="auth.hasPermission('tax.export')" class="flex justify-center">
+        <NuxtLink to="/pajak/panduan-ekstensi" class="inline-flex items-center gap-1.5 text-caption text-muted-foreground hover:text-primary transition-colors">
+          <HelpCircle class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Panduan pasang ekstensi SIPADI
+        </NuxtLink>
       </div>
 
       <div
