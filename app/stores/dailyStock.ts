@@ -12,7 +12,7 @@ export interface DailyStockItem {
   adjustment_qty: number
   sold_qty: number
   closing_qty: number | null
-  status: 'open' | 'closed'
+  status: 'draft' | 'open' | 'closed'
   current_stock?: number | null
   remaining_qty?: number
 }
@@ -26,12 +26,25 @@ export interface ProductForStock {
   min_stock: number
 }
 
+export interface DailyStockHistoryRow {
+  date: string
+  total_menu_items: number
+  total_opening_qty: number
+  total_closing_qty: number
+  status: 'draft' | 'open' | 'closed'
+}
+
 export const useDailyStockStore = defineStore('dailyStock', () => {
   const stocks = ref<DailyStockItem[]>([])
   const products = ref<ProductForStock[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const today: string = new Date().toISOString().split('T')[0]!
+
+  const history = ref<DailyStockHistoryRow[]>([])
+  const historyLoading = ref(false)
+  const dayDetail = ref<DailyStockItem[]>([])
+  const dayDetailLoading = ref(false)
 
   const hasStocks = computed(() => stocks.value.length > 0)
   const isOpen = computed(() => stocks.value.some(s => s.status === 'open'))
@@ -58,6 +71,38 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     }
   }
 
+  async function fetchHistory() {
+    historyLoading.value = true
+    error.value = null
+    try {
+      const api = useApi()
+      const res = await api<{ data: DailyStockHistoryRow[] }>('/v1/inventory/daily-stock/history', {
+        query: { business_id: businessId() },
+      })
+      history.value = res.data
+    } catch {
+      history.value = []
+    } finally {
+      historyLoading.value = false
+    }
+  }
+
+  async function fetchDayDetail(date: string) {
+    dayDetailLoading.value = true
+    error.value = null
+    try {
+      const api = useApi()
+      const res = await api<{ data: DailyStockItem[] }>(`/v1/inventory/daily-stock/${date}`, {
+        query: { business_id: businessId() },
+      })
+      dayDetail.value = res.data
+    } catch {
+      dayDetail.value = []
+    } finally {
+      dayDetailLoading.value = false
+    }
+  }
+
   async function fetchProducts() {
     loading.value = true
     try {
@@ -73,16 +118,18 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     }
   }
 
-  async function openDay(items: { product_id: string; product_name: string; opening_qty: number }[]) {
+  async function openDay(items: { product_id: string; product_name: string; opening_qty: number }[], date: string = today) {
     loading.value = true
     error.value = null
     try {
       const api = useApi()
       const res = await api<{ data: DailyStockItem[] }>('/v1/inventory/daily-stock/open', {
         method: 'POST',
-        body: { business_id: businessId(), date: today, items },
+        body: { business_id: businessId(), date, items },
       })
-      stocks.value = res.data
+      // `stocks` backs the "today" reconciliation view (e.g. shift close) — only
+      // refresh it when the opened date is today; other dates use `dayDetail`.
+      if (date === today) stocks.value = res.data
     } catch (e: any) {
       error.value = e?.data?.message ?? 'Stok belum bisa dibuka. Coba lagi sebentar, ya.'
       throw e
@@ -113,27 +160,26 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     }
   }
 
-  async function closeDay() {
-    loading.value = true
+  async function deleteDay(date: string) {
     error.value = null
     try {
       const api = useApi()
-      const res = await api<{ data: DailyStockItem[] }>('/v1/inventory/daily-stock/close', {
-        method: 'POST',
-        body: { business_id: businessId(), date: today },
+      await api(`/v1/inventory/daily-stock/${date}`, {
+        method: 'DELETE',
+        query: { business_id: businessId() },
       })
-      stocks.value = res.data
+      history.value = history.value.filter(h => h.date !== date)
     } catch (e: any) {
-      error.value = e?.data?.message ?? 'Hari ini belum bisa ditutup. Coba lagi sebentar, ya.'
+      error.value = e?.data?.message ?? 'Draf stok belum bisa dihapus. Coba lagi sebentar, ya.'
       throw e
-    } finally {
-      loading.value = false
     }
   }
 
   return {
     stocks, products, loading, error, today,
     hasStocks, isOpen, isClosed,
-    fetchToday, fetchProducts, openDay, adjustStock, closeDay,
+    fetchToday, fetchProducts, openDay, adjustStock, deleteDay,
+    history, historyLoading, fetchHistory,
+    dayDetail, dayDetailLoading, fetchDayDetail,
   }
 })

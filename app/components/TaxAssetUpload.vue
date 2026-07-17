@@ -3,11 +3,14 @@ import { ref } from 'vue'
 import { ImageUp, Trash2, Loader2 } from '@lucide/vue'
 import { useTaxStore, type TaxAsset } from '@/stores/tax'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   type: 'signature' | 'stamp'
   label: string
   asset: TaxAsset | undefined
-}>()
+  maxSizeKb?: number
+}>(), {
+  maxSizeKb: 512,
+})
 
 const taxStore = useTaxStore()
 const toast = useToast()
@@ -24,6 +27,16 @@ async function onFilePicked(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   ;(event.target as HTMLInputElement).value = ''
   if (!file) return
+
+  const maxSizeBytes = props.maxSizeKb * 1024
+  if (file.size > maxSizeBytes) {
+    const fileSizeKb = Math.ceil(file.size / 1024)
+    toast.error(
+      'Ukuran berkas terlalu besar',
+      `${props.label} maksimal ${props.maxSizeKb} KB. Berkas Anda ${fileSizeKb} KB.`,
+    )
+    return
+  }
 
   uploading.value = true
   try {
@@ -70,6 +83,9 @@ async function removeAsset() {
       <div class="flex-1 min-w-0 space-y-2">
         <p class="text-small text-muted-foreground">
           {{ asset ? 'PNG/JPG diunggah, ukuran disesuaikan otomatis.' : 'Belum ada berkas. Area ini akan kosong di PDF.' }}
+        </p>
+        <p class="text-small text-muted-foreground">
+          Maks. {{ maxSizeKb }} KB. Gunakan PNG dengan latar transparan untuk hasil terbaik.
         </p>
         <div class="flex items-center gap-2">
           <button

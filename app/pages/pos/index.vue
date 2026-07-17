@@ -8,7 +8,7 @@
 
     <!-- Left: Product panel -->
     <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Shift reminder (dismissible, not a blocker) -->
+      <!-- Shift reminder (dismissible banner; the actual gate is on the checkout buttons below) -->
       <div
         v-if="showShiftReminder"
         class="px-4 py-2 border-b border-border flex items-center gap-2 flex-shrink-0 bg-warning/10"
@@ -16,7 +16,7 @@
       >
         <Clock class="w-4 h-4 text-warning flex-shrink-0" :stroke-width="1.75" />
         <p class="text-small flex-1 min-w-0 text-warning">
-          Shift belum dibuka — transaksi tetap bisa diproses.
+          Shift belum dibuka — buka shift dulu untuk mulai transaksi.
         </p>
         <button
           @click="showOpenForm = true"
@@ -111,6 +111,15 @@
           >
             <ReceiptText class="w-4 h-4" :stroke-width="1.75" />
           </NuxtLink>
+          <button
+            v-if="shiftStore.hasActiveShift && auth.hasPermission('pos.expense')"
+            @click="openExpenseForm"
+            class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-background border border-input rounded-lg text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            aria-label="Catat pengeluaran"
+            title="Catat pengeluaran"
+          >
+            <Wallet class="w-4 h-4" :stroke-width="1.75" />
+          </button>
         </div>
 
         <!-- Category pills -->
@@ -178,11 +187,14 @@
         :is-submitting="cartStore.submitting"
         :checkout-status="checkoutStatus"
         :last-order="cartStore.lastOrder"
+        :has-active-shift="shiftStore.hasActiveShift"
+        :error-message="checkoutErrorMessage"
         @pay="showPayment = true"
         @paylater="payLater"
         @hold="holdOrder"
         @cancel="cancelCart"
         @reset="resetFlow"
+        @open-shift="showOpenForm = true"
       />
     </aside>
 
@@ -241,11 +253,14 @@
             :is-submitting="cartStore.submitting"
             :checkout-status="checkoutStatus"
             :last-order="cartStore.lastOrder"
+            :has-active-shift="shiftStore.hasActiveShift"
+            :error-message="checkoutErrorMessage"
             @pay="showPayment = true"
             @paylater="payLater"
             @hold="holdOrder"
             @cancel="cancelCart"
             @reset="resetFlow(); showMobileCart = false"
+            @open-shift="showOpenForm = true; showMobileCart = false"
           />
         </div>
         <!-- Mobile safe area padding -->
@@ -319,6 +334,76 @@
       </div>
     </Transition>
 
+    <!-- Expense drawer (record operational expenses during an active shift) -->
+    <DrawerRoot v-model:open="showExpenseForm">
+      <DrawerContent aria-label="Catat pengeluaran">
+        <DrawerHeader>
+          <DrawerTitle>Catat Pengeluaran</DrawerTitle>
+        </DrawerHeader>
+        <div class="flex-1 overflow-y-auto px-5 pb-4 space-y-4 text-left">
+          <div>
+            <label for="expense-amount" class="text-small text-muted-foreground block mb-1">
+              Jumlah <span class="text-destructive">*</span>
+            </label>
+            <input
+              id="expense-amount"
+              :value="expenseAmountDisplay" @input="onExpenseAmountInput"
+              type="text" inputmode="numeric"
+              class="w-full h-11 px-3 bg-background border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label class="text-small text-muted-foreground block mb-1">Kategori <span class="text-destructive">*</span></label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="cat in expenseCategoryOptions"
+                :key="cat"
+                type="button"
+                @click="expenseForm.category = cat"
+                class="px-3 h-9 rounded-full text-small font-medium transition-colors"
+                :class="expenseForm.category === cat ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'"
+              >{{ cat }}</button>
+            </div>
+          </div>
+          <div>
+            <label for="expense-note" class="text-small text-muted-foreground block mb-1">Catatan (opsional)</label>
+            <Input id="expense-note" v-model="expenseForm.note" class="h-11" placeholder="Keterangan pengeluaran..." />
+          </div>
+
+          <div v-if="shiftExpenses.length > 0" class="space-y-1.5">
+            <p class="text-small text-muted-foreground font-medium">Sudah dicatat shift ini</p>
+            <div
+              v-for="e in shiftExpenses"
+              :key="e.id"
+              class="flex items-center justify-between px-3 py-2 bg-muted/40 rounded-lg"
+            >
+              <span class="text-small text-foreground">{{ e.category }}</span>
+              <span class="text-small font-semibold tabular-nums">{{ formatRupiah(e.amount) }}</span>
+            </div>
+          </div>
+
+          <InlineAlert v-if="expenseError" variant="destructive">{{ expenseError }}</InlineAlert>
+        </div>
+        <DrawerFooter>
+          <div class="flex w-full gap-2">
+            <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'flex-1')" @click="showExpenseForm = false">
+              Tutup
+            </button>
+            <button
+              type="button"
+              :class="cn(buttonVariants(), 'flex-1')"
+              :disabled="expenseSubmitting || !expenseAmount || !expenseForm.category"
+              @click="submitExpense"
+            >
+              <Loader2 v-if="expenseSubmitting" class="w-4 h-4 animate-spin mr-1" />
+              Simpan
+            </button>
+          </div>
+        </DrawerFooter>
+      </DrawerContent>
+    </DrawerRoot>
+
     <!-- Open shift drawer (reachable from the reminder banner / header status chip, not a gate) -->
     <DrawerRoot v-model:open="showOpenForm">
       <DrawerContent aria-label="Buka shift">
@@ -333,14 +418,11 @@
             <label for="opening-cash" class="text-small text-muted-foreground block mb-1">
               Kas Awal <span class="text-destructive">*</span>
             </label>
-            <Input
+            <input
               id="opening-cash"
-              v-model.number="openForm.opening_cash"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              step="1000"
-              class="h-11"
+              :value="openingCashDisplay" @input="onOpeningCashInput"
+              type="text" inputmode="numeric"
+              class="w-full h-11 px-3 bg-background border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
               placeholder="0"
             />
           </div>
@@ -386,12 +468,14 @@ export const CartPanel = defineComponent({
     isSubmitting: { type: Boolean, default: false },
     checkoutStatus: { type: String, default: 'idle' },
     lastOrder: { type: Object, default: null },
+    hasActiveShift: { type: Boolean, default: true },
+    errorMessage: { type: String, default: null },
   },
-  emits: ['pay', 'paylater', 'hold', 'cancel', 'reset'],
+  emits: ['pay', 'paylater', 'hold', 'cancel', 'reset', 'open-shift'],
   setup(props, { emit }) {
     const confirmCancel = vRef(false)
     return () => {
-      const { cartStore, isSubmitting, checkoutStatus, lastOrder } = props
+      const { cartStore, isSubmitting, checkoutStatus, lastOrder, hasActiveShift, errorMessage } = props
 
       // Receipt / success state
       if (checkoutStatus === 'success' && lastOrder) {
@@ -428,7 +512,7 @@ export const CartPanel = defineComponent({
           ),
           h('div', {}, [
             h('p', { class: 'text-h2 text-foreground' }, 'Yah, Transaksi Belum Berhasil'),
-            h('p', { class: 'text-body text-muted-foreground mt-1' }, 'Coba periksa koneksi internet kamu, lalu coba lagi ya'),
+            h('p', { class: 'text-body text-muted-foreground mt-1' }, errorMessage || 'Coba periksa koneksi internet kamu, lalu coba lagi ya'),
           ]),
           h('button', {
             class: 'text-body text-primary font-medium min-h-[44px] hover:text-primary/80 transition-colors',
@@ -491,27 +575,34 @@ export const CartPanel = defineComponent({
             h('span', { class: 'text-h3 text-muted-foreground' }, 'Total'),
             h('span', { class: 'text-display text-primary tabular-nums' }, formatRupiah(cartStore.totalAmount)),
           ]),
-          h('button', {
-            class: `w-full h-12 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition-colors active:scale-[0.98] ${
-              cartStore.items.length === 0 || isSubmitting
-                ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
-            }`,
-            disabled: cartStore.items.length === 0 || isSubmitting,
-            onClick: () => emit('pay'),
-          }, 'Bayar Sekarang'),
-          h('div', { class: 'grid grid-cols-2 gap-2' }, [
-            h('button', {
-              class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
-              disabled: cartStore.items.length === 0 || isSubmitting,
-              onClick: () => emit('paylater'),
-            }, [h(Clock, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Bayar Nanti']),
-            h('button', {
-              class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
-              disabled: cartStore.items.length === 0 || isSubmitting,
-              onClick: () => emit('hold'),
-            }, [h(Save, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Simpan']),
-          ]),
+          !hasActiveShift
+            ? h('button', {
+                class: 'w-full h-12 rounded-lg font-semibold text-base flex items-center justify-center gap-2 bg-warning/10 text-warning border border-warning/30 hover:bg-warning/15 transition-colors',
+                onClick: () => emit('open-shift'),
+              }, [h(Clock, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Buka Shift untuk Mulai Transaksi'])
+            : [
+                h('button', {
+                  class: `w-full h-12 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition-colors active:scale-[0.98] ${
+                    cartStore.items.length === 0 || isSubmitting
+                      ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  }`,
+                  disabled: cartStore.items.length === 0 || isSubmitting,
+                  onClick: () => emit('pay'),
+                }, 'Bayar Sekarang'),
+                h('div', { class: 'grid grid-cols-2 gap-2' }, [
+                  h('button', {
+                    class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
+                    disabled: cartStore.items.length === 0 || isSubmitting,
+                    onClick: () => emit('paylater'),
+                  }, [h(Clock, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Bayar Nanti']),
+                  h('button', {
+                    class: 'h-11 rounded-lg font-medium text-small flex items-center justify-center gap-1.5 border border-border text-foreground hover:bg-muted disabled:opacity-50',
+                    disabled: cartStore.items.length === 0 || isSubmitting,
+                    onClick: () => emit('hold'),
+                  }, [h(Save, { class: 'w-4 h-4', strokeWidth: 1.75 }), 'Simpan']),
+                ]),
+              ],
           cartStore.items.length > 0
             ? (confirmCancel.value
               ? h('div', { class: 'flex items-center justify-between gap-2 pt-1' }, [
@@ -548,9 +639,11 @@ definePageMeta({
 
 import { ref, computed, onMounted } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
-import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText, RefreshCw, WifiOff, Clock } from '@lucide/vue'
+import { Search, ShoppingCart, PackageSearch, UtensilsCrossed, X, ScanLine, Loader2, ReceiptText, RefreshCw, WifiOff, Clock, Wallet } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
 import { useShiftStore } from '~/stores/shift'
+import { useAuthStore } from '~/stores/auth'
+import { useFinanceStore, EXPENSE_CATEGORIES, type FinanceEntry } from '~/stores/finance'
 import { formatRupiah, cn } from '~/utils'
 import { buttonVariants } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -561,17 +654,66 @@ import PlateScanSheet from '~/components/PlateScanSheet.vue'
 
 const cartStore = useCartStore()
 const shiftStore = useShiftStore()
+const auth = useAuthStore()
+const financeStore = useFinanceStore()
 const api = useApi()
 const toast = useToast()
 
 const showOpenForm = ref(false)
-const openForm = ref({ opening_cash: 0 })
+const openingCash = ref<number | null>(0)
+const { display: openingCashDisplay, onInput: onOpeningCashInput } = useRupiahInput(openingCash)
+
+const showExpenseForm = ref(false)
+const expenseAmount = ref<number | null>(null)
+const { display: expenseAmountDisplay, onInput: onExpenseAmountInput } = useRupiahInput(expenseAmount)
+const expenseForm = ref({ category: '', note: '' })
+const expenseSubmitting = ref(false)
+const expenseError = ref<string | null>(null)
+const shiftExpenses = ref<FinanceEntry[]>([])
+
+const expenseCategoryOptions = computed(() => {
+  const custom = financeStore.categories.filter(c => c.type === 'expense').map(c => c.name)
+  return custom.length ? custom : [...EXPENSE_CATEGORIES]
+})
+
+async function openExpenseForm() {
+  expenseAmount.value = null
+  expenseForm.value = { category: '', note: '' }
+  expenseError.value = null
+  showExpenseForm.value = true
+  if (financeStore.categories.length === 0) await financeStore.fetchCategories()
+  if (shiftStore.activeShift) shiftExpenses.value = await financeStore.fetchShiftExpenses(shiftStore.activeShift.id)
+}
+
+async function submitExpense() {
+  if (!shiftStore.activeShift || !expenseAmount.value || !expenseForm.value.category) return
+  expenseSubmitting.value = true
+  expenseError.value = null
+  try {
+    await financeStore.createEntry({
+      type: 'expense',
+      amount: expenseAmount.value,
+      category: expenseForm.value.category,
+      note: expenseForm.value.note || undefined,
+      business_id: auth.user?.business_id,
+      shift_id: shiftStore.activeShift.id,
+    })
+    shiftExpenses.value = await financeStore.fetchShiftExpenses(shiftStore.activeShift.id)
+    expenseAmount.value = null
+    expenseForm.value = { category: '', note: '' }
+    toast.success('Pengeluaran dicatat', 'Pengeluaran sudah ditambahkan ke shift ini')
+  } catch (e: any) {
+    expenseError.value = e?.data?.message ?? 'Pengeluaran belum bisa disimpan. Coba lagi sebentar, ya.'
+  } finally {
+    expenseSubmitting.value = false
+  }
+}
 
 async function doOpenShift() {
   try {
-    await shiftStore.openShift(openForm.value.opening_cash ?? 0)
+    await shiftStore.openShift(openingCash.value ?? 0)
     showOpenForm.value = false
-    openForm.value = { opening_cash: 0 }
+    openingCash.value = 0
     toast.success('Shift dibuka', 'Selamat berjualan hari ini!')
   } catch { /* error handled by store */ }
 }
@@ -593,6 +735,7 @@ const showMobileCart = ref(false)
 const showPlateScan = ref(false)
 const showPayment = ref(false)
 const checkoutStatus = ref<'idle' | 'success' | 'error'>('idle')
+const checkoutErrorMessage = ref<string | null>(null)
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
 const cashTendered = ref<number | null>(null)
@@ -662,7 +805,8 @@ async function confirmPayment() {
     await cartStore.submitOrder({ action: 'complete', payment: cashTendered.value ?? 0, method: 'cash' })
     showPayment.value = false
     checkoutStatus.value = 'success'
-  } catch {
+  } catch (e: any) {
+    checkoutErrorMessage.value = e?.data?.message ?? null
     checkoutStatus.value = 'error'
   }
 }
@@ -675,7 +819,8 @@ async function payLater() {
   try {
     await cartStore.submitOrder({ action: 'complete' })
     checkoutStatus.value = 'success'
-  } catch {
+  } catch (e: any) {
+    checkoutErrorMessage.value = e?.data?.message ?? null
     checkoutStatus.value = 'error'
   }
 }
@@ -684,13 +829,15 @@ async function holdOrder() {
   try {
     await cartStore.submitOrder({ action: 'hold' })
     checkoutStatus.value = 'success'
-  } catch {
+  } catch (e: any) {
+    checkoutErrorMessage.value = e?.data?.message ?? null
     checkoutStatus.value = 'error'
   }
 }
 
 function resetFlow() {
   checkoutStatus.value = 'idle'
+  checkoutErrorMessage.value = null
   cashTendered.value = null
   cartStore.lastOrder = null
 }

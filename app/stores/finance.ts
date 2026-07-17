@@ -128,6 +128,26 @@ export const useFinanceStore = defineStore('finance', () => {
     return res.data
   }
 
+  async function fetchEntry(id: string): Promise<FinanceEntry> {
+    const api = useApi()
+    const res = await api<{ data: FinanceEntry }>(`/v1/finance/${id}`)
+    return res.data
+  }
+
+  async function updateEntry(id: string, data: {
+    type: 'income' | 'expense'
+    amount: number
+    category: string
+    note?: string
+    occurred_at?: string
+  }) {
+    const api = useApi()
+    const res = await api<{ data: FinanceEntry }>(`/v1/finance/${id}`, { method: 'PUT', body: data })
+    const idx = entries.value.findIndex(e => e.id === id)
+    if (idx !== -1) entries.value[idx] = res.data
+    return res.data
+  }
+
   async function deleteEntry(id: string) {
     const api = useApi()
     await api(`/v1/finance/${id}`, { method: 'DELETE' })
@@ -167,7 +187,7 @@ export const useFinanceStore = defineStore('finance', () => {
 
   return {
     entries, summary, businesses, categories, loading, error,
-    fetchEntries, fetchSummary, fetchBusinesses, createEntry, deleteEntry,
+    fetchEntries, fetchSummary, fetchBusinesses, createEntry, fetchEntry, updateEntry, deleteEntry,
     fetchCategories, createCategory, updateCategory, deleteCategory, fetchShiftExpenses,
   }
 })

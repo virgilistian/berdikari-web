@@ -8,6 +8,7 @@ export const PermissionSeeder: string[] = [
   'pos.view',
   'pos.open',
   'pos.close',
+  'pos.expense',
 
   // Finance / Keuangan
   'finance.view',

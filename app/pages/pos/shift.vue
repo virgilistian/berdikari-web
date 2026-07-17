@@ -27,7 +27,7 @@
       </div>
       <button
         v-if="auth.hasPermission('pos.close')"
-        @click="showCloseForm = true"
+        @click="openCloseWizard"
         class="w-full h-11 rounded-lg bg-destructive text-destructive-foreground font-semibold text-sm hover:bg-destructive/90 transition-colors"
       >
         Tutup Shift
@@ -83,7 +83,7 @@
         <div
           v-for="shift in filteredShifts"
           :key="shift.id"
-          @click="selectedShift = shift; showDetail = true"
+          @click="openDetail(shift)"
           class="bg-surface border border-border rounded-xl p-4 shadow-elevation-1 cursor-pointer hover:border-input transition-colors space-y-2"
         >
           <div class="flex items-start justify-between gap-2">
@@ -142,14 +142,11 @@
             <label for="opening-cash" class="text-small text-muted-foreground">
               Kas Awal <span class="text-destructive">*</span>
             </label>
-            <Input
+            <input
               id="opening-cash"
-              v-model.number="openForm.opening_cash"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              step="1000"
-              class="mt-1 h-11"
+              :value="openingCashDisplay" @input="onOpeningCashInput"
+              type="text" inputmode="numeric"
+              class="mt-1 w-full h-11 px-3 bg-background border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
               placeholder="0"
             />
           </div>
@@ -174,93 +171,183 @@
       </DrawerContent>
     </DrawerRoot>
 
-    <!-- Close shift drawer -->
+    <!-- Close shift wizard: stock reconciliation → cash closing → summary -->
     <DrawerRoot v-model:open="showCloseForm">
       <DrawerContent aria-label="Tutup shift">
         <DrawerHeader>
-          <DrawerTitle>Tutup Shift Kasir</DrawerTitle>
+          <DrawerTitle>{{ closeStepTitle }}</DrawerTitle>
         </DrawerHeader>
-        <div v-if="store.activeShift" class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
-          <!-- Summary preview -->
-          <div class="bg-muted/50 rounded-xl p-4 space-y-2">
-            <p class="text-small text-muted-foreground font-medium">Ringkasan Shift</p>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <p class="text-caption text-muted-foreground">Total Penjualan</p>
-                <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(store.activeShift.total_sales) }}</p>
-              </div>
-              <div>
-                <p class="text-caption text-muted-foreground">Transaksi</p>
-                <p class="text-body font-bold tabular-nums text-foreground">{{ store.activeShift.transaction_count }}</p>
-              </div>
-              <div>
-                <p class="text-caption text-muted-foreground">Kas Awal</p>
-                <p class="text-body font-semibold tabular-nums">{{ formatCurrency(store.activeShift.opening_cash) }}</p>
-              </div>
-            </div>
-          </div>
 
-          <!-- Payment breakdown -->
-          <div v-if="store.activeShift.payment_breakdown" class="space-y-1.5">
-            <p class="text-small text-muted-foreground font-medium">Rekapitulasi Pembayaran</p>
-            <div
-              v-for="(amount, method) in store.activeShift.payment_breakdown"
-              :key="method"
-              class="flex items-center justify-between px-3 py-2 bg-surface rounded-lg border border-border/60"
-            >
-              <span class="text-small text-foreground capitalize">{{ methodLabel(method) }}</span>
-              <span class="text-small font-semibold tabular-nums">{{ formatCurrency(amount) }}</span>
-            </div>
-          </div>
-
-          <div>
-            <label for="closing-cash" class="text-small text-muted-foreground">
-              Kas Aktual Saat Tutup <span class="text-destructive">*</span>
-            </label>
-            <Input
-              id="closing-cash"
-              v-model.number="closeForm.closing_cash"
-              type="number"
-              inputmode="numeric"
-              min="0"
-              step="1000"
-              class="mt-1 h-11"
-              placeholder="0"
-            />
-            <!-- Live difference preview -->
-            <p v-if="closeForm.closing_cash !== null" class="text-small mt-1.5"
-              :class="cashDiff < 0 ? 'text-destructive' : cashDiff > 0 ? 'text-success' : 'text-muted-foreground'"
-            >
-              Selisih: {{ formatDiff(cashDiff) }}
+        <!-- Step 1: stock reconciliation -->
+        <template v-if="closeStep === 'stock'">
+          <div class="flex-1 overflow-y-auto px-5 pb-4 space-y-3">
+            <p class="text-small text-muted-foreground">
+              Periksa sisa stok menurut sistem. Sesuaikan jika jumlah fisik berbeda, dan isi alasan penyesuaian.
             </p>
+            <div v-if="dailyStockStore.loading" class="space-y-2">
+              <div v-for="i in 3" :key="i" class="skeleton h-20 rounded-xl" />
+            </div>
+            <div v-else-if="dailyStockStore.stocks.length === 0" class="bg-muted/50 rounded-xl p-4 text-small text-muted-foreground">
+              Belum ada data stok hari ini. Kamu bisa lanjut menutup shift tanpa rekonsiliasi stok.
+            </div>
+            <div v-else class="space-y-3">
+              <div
+                v-for="item in dailyStockStore.stocks"
+                :key="item.id"
+                class="bg-surface border border-border rounded-xl p-3 space-y-2"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-body font-medium text-foreground truncate">{{ item.product_name }}</p>
+                  <span class="text-caption text-muted-foreground flex-shrink-0">
+                    Awal {{ item.opening_qty }} · Terjual {{ item.sold_qty }} · Sistem {{ systemRemaining(item) }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-small text-muted-foreground flex-shrink-0">Fisik</label>
+                  <input
+                    v-if="stockAdjustments[item.product_id]"
+                    v-model.number="stockAdjustments[item.product_id].physical"
+                    type="number" inputmode="numeric" min="0"
+                    class="w-20 h-9 text-center text-body font-semibold tabular-nums bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
+                  />
+                </div>
+                <Input
+                  v-if="stockAdjustments[item.product_id] && stockAdjustments[item.product_id].physical !== systemRemaining(item)"
+                  v-model="stockAdjustments[item.product_id].reason"
+                  placeholder="Alasan penyesuaian (wajib)"
+                  class="h-10"
+                />
+              </div>
+            </div>
+            <InlineAlert v-if="dailyStockStore.error" variant="destructive">{{ dailyStockStore.error }}</InlineAlert>
           </div>
-          <div>
-            <label for="closing-note" class="text-small text-muted-foreground">Catatan (opsional)</label>
-            <Input
-              id="closing-note"
-              v-model="closeForm.closing_note"
-              class="mt-1 h-11"
-              placeholder="Keterangan selisih atau catatan lain..."
-            />
+          <DrawerFooter>
+            <div class="flex w-full gap-2">
+              <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'flex-1')" @click="showCloseForm = false">
+                Batal
+              </button>
+              <button
+                type="button"
+                :class="cn(buttonVariants(), 'flex-1')"
+                :disabled="dailyStockStore.loading || stockSubmitting || !stockStepValid"
+                @click="submitStockStep"
+              >
+                <Loader2 v-if="stockSubmitting" class="w-4 h-4 animate-spin mr-1" />
+                {{ dailyStockStore.stocks.length === 0 ? 'Lewati' : 'Lanjut' }}
+              </button>
+            </div>
+          </DrawerFooter>
+        </template>
+
+        <!-- Step 2: cash closing -->
+        <template v-else-if="closeStep === 'cash'">
+          <div v-if="store.activeShift" class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
+            <!-- Summary preview -->
+            <div class="bg-muted/50 rounded-xl p-4 space-y-2">
+              <p class="text-small text-muted-foreground font-medium">Ringkasan Shift</p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="text-caption text-muted-foreground">Total Penjualan</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(store.activeShift.total_sales) }}</p>
+                </div>
+                <div>
+                  <p class="text-caption text-muted-foreground">Transaksi</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ store.activeShift.transaction_count }}</p>
+                </div>
+                <div>
+                  <p class="text-caption text-muted-foreground">Kas Awal</p>
+                  <p class="text-body font-semibold tabular-nums">{{ formatCurrency(store.activeShift.opening_cash) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment breakdown -->
+            <div v-if="store.activeShift.payment_breakdown" class="space-y-1.5">
+              <p class="text-small text-muted-foreground font-medium">Rekapitulasi Pembayaran</p>
+              <div
+                v-for="(amount, method) in store.activeShift.payment_breakdown"
+                :key="method"
+                class="flex items-center justify-between px-3 py-2 bg-surface rounded-lg border border-border/60"
+              >
+                <span class="text-small text-foreground capitalize">{{ methodLabel(method) }}</span>
+                <span class="text-small font-semibold tabular-nums">{{ formatCurrency(amount) }}</span>
+              </div>
+            </div>
+
+            <div>
+              <label for="closing-cash" class="text-small text-muted-foreground">
+                Kas Aktual Saat Tutup <span class="text-destructive">*</span>
+              </label>
+              <input
+                id="closing-cash"
+                :value="closingCashDisplay" @input="onClosingCashInput"
+                type="text" inputmode="numeric"
+                class="mt-1 w-full h-11 px-3 bg-background border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
+                placeholder="0"
+              />
+              <!-- Live difference preview -->
+              <p v-if="closingCash !== null" class="text-small mt-1.5"
+                :class="cashDiff < 0 ? 'text-destructive' : cashDiff > 0 ? 'text-success' : 'text-muted-foreground'"
+              >
+                Selisih: {{ formatDiff(cashDiff) }}
+              </p>
+            </div>
+            <div>
+              <label for="closing-note" class="text-small text-muted-foreground">Catatan (opsional)</label>
+              <Input
+                id="closing-note"
+                v-model="closeForm.closing_note"
+                class="mt-1 h-11"
+                placeholder="Keterangan selisih atau catatan lain..."
+              />
+            </div>
+            <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
           </div>
-          <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
-        </div>
-        <DrawerFooter>
-          <div class="flex w-full gap-2">
-            <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'flex-1')" @click="showCloseForm = false">
-              Batal
+          <DrawerFooter>
+            <div class="flex w-full gap-2">
+              <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'flex-1')" @click="closeStep = 'stock'">
+                Kembali
+              </button>
+              <button
+                type="button"
+                :class="cn(buttonVariants({ variant: 'destructive' }), 'flex-1')"
+                :disabled="store.loading || closingCash === null"
+                @click="doCloseShift"
+              >
+                <Loader2 v-if="store.loading" class="w-4 h-4 animate-spin mr-1" />
+                Konfirmasi &amp; Tutup Shift
+              </button>
+            </div>
+          </DrawerFooter>
+        </template>
+
+        <!-- Step 3: summary -->
+        <template v-else-if="closeStep === 'summary' && closedSummary">
+          <div class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
+            <div class="bg-success/10 border border-success/20 rounded-xl p-4 space-y-2">
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <p class="text-caption text-muted-foreground">Total Penjualan</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(closedSummary.total_sales) }}</p>
+                </div>
+                <div>
+                  <p class="text-caption text-muted-foreground">Transaksi</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ closedSummary.transaction_count }}</p>
+                </div>
+                <div>
+                  <p class="text-caption text-muted-foreground">Kas Diterima</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(closedSummary.closing_cash) }}</p>
+                </div>
+              </div>
+            </div>
+            <ShiftSummaryDetails :shift="closedSummary" :expenses="closedExpenses" />
+          </div>
+          <DrawerFooter>
+            <button type="button" :class="cn(buttonVariants(), 'w-full')" @click="finishWizard">
+              Selesai
             </button>
-            <button
-              type="button"
-              :class="cn(buttonVariants({ variant: 'destructive' }), 'flex-1')"
-              :disabled="store.loading || closeForm.closing_cash === null"
-              @click="doCloseShift"
-            >
-              <Loader2 v-if="store.loading" class="w-4 h-4 animate-spin mr-1" />
-              Tutup Shift
-            </button>
-          </div>
-        </DrawerFooter>
+          </DrawerFooter>
+        </template>
       </DrawerContent>
     </DrawerRoot>
 
@@ -331,6 +418,12 @@
             <p class="text-caption text-muted-foreground mb-0.5">Catatan</p>
             <p class="text-small text-foreground italic">"{{ selectedShift.closing_note }}"</p>
           </div>
+
+          <ShiftSummaryDetails
+            v-if="selectedShift.status === 'closed'"
+            :shift="selectedShift"
+            :expenses="detailExpenses"
+          />
         </div>
         <DrawerFooter>
           <button type="button" :class="cn(buttonVariants({ variant: 'outline' }), 'w-full')" @click="showDetail = false">
@@ -350,8 +443,11 @@ import { DrawerRoot, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } fr
 import { EmptyState } from '~/components/ui/empty-state'
 import { InlineAlert } from '~/components/ui/inline-alert'
 import { Input } from '~/components/ui/input'
+import ShiftSummaryDetails from '~/components/ShiftSummaryDetails.vue'
 import { useAuthStore } from '~/stores/auth'
 import { useShiftStore, type CashierShift } from '~/stores/shift'
+import { useDailyStockStore, type DailyStockItem } from '~/stores/dailyStock'
+import { useFinanceStore, type FinanceEntry } from '~/stores/finance'
 import { cn } from '~/utils'
 
 definePageMeta({
@@ -361,6 +457,8 @@ definePageMeta({
 
 const auth = useAuthStore()
 const store = useShiftStore()
+const dailyStockStore = useDailyStockStore()
+const financeStore = useFinanceStore()
 const toast = useToast()
 
 const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -369,12 +467,27 @@ const showOpenForm = ref(false)
 const showCloseForm = ref(false)
 const showDetail = ref(false)
 const selectedShift = ref<CashierShift | null>(null)
+const detailExpenses = ref<FinanceEntry[]>([])
 const statusFilter = ref('semua')
 
-const openForm = ref({ opening_cash: 0 })
-const closeForm = ref<{ closing_cash: number | null; closing_note: string }>({
-  closing_cash: null,
-  closing_note: '',
+const openingCash = ref<number | null>(0)
+const { display: openingCashDisplay, onInput: onOpeningCashInput } = useRupiahInput(openingCash)
+
+const closingCash = ref<number | null>(null)
+const { display: closingCashDisplay, onInput: onClosingCashInput } = useRupiahInput(closingCash)
+const closeForm = ref<{ closing_note: string }>({ closing_note: '' })
+
+/** Close-shift wizard state */
+const closeStep = ref<'stock' | 'cash' | 'summary'>('stock')
+const stockAdjustments = ref<Record<string, { physical: number; reason: string }>>({})
+const stockSubmitting = ref(false)
+const closedSummary = ref<CashierShift | null>(null)
+const closedExpenses = ref<FinanceEntry[]>([])
+
+const closeStepTitle = computed(() => {
+  if (closeStep.value === 'stock') return 'Rekonsiliasi Stok'
+  if (closeStep.value === 'summary') return 'Ringkasan Shift'
+  return 'Tutup Shift Kasir'
 })
 
 const statusOptions = [
@@ -389,11 +502,24 @@ const filteredShifts = computed(() => {
 })
 
 const cashDiff = computed(() => {
-  if (!store.activeShift || closeForm.value.closing_cash === null) return 0
+  if (!store.activeShift || closingCash.value === null) return 0
   const cashSales = store.activeShift.payment_breakdown?.cash ?? 0
   const expected = (store.activeShift.opening_cash ?? 0) + cashSales
-  return closeForm.value.closing_cash - expected
+  return closingCash.value - expected
 })
+
+function systemRemaining(item: DailyStockItem): number {
+  return item.remaining_qty ?? Math.max(0, item.opening_qty + item.adjustment_qty - item.sold_qty)
+}
+
+const stockStepValid = computed(() =>
+  dailyStockStore.stocks.every((item) => {
+    const adj = stockAdjustments.value[item.product_id]
+    if (!adj) return false
+    if (adj.physical === systemRemaining(item)) return true
+    return adj.reason.trim().length > 0
+  })
+)
 
 function formatCurrency(value: number | null): string {
   if (value === null || value === undefined) return '—'
@@ -426,26 +552,78 @@ function methodLabel(method: string): string {
 
 async function doOpenShift() {
   try {
-    await store.openShift(openForm.value.opening_cash ?? 0)
+    await store.openShift(openingCash.value ?? 0)
     showOpenForm.value = false
-    openForm.value = { opening_cash: 0 }
+    openingCash.value = 0
     await store.fetchShifts()
     toast.success('Shift dibuka', 'Selamat berjualan hari ini!')
   } catch { /* error shown in form */ }
 }
 
-async function doCloseShift() {
-  if (!store.activeShift || closeForm.value.closing_cash === null) return
+async function openCloseWizard() {
+  closeStep.value = 'stock'
+  closedSummary.value = null
+  closedExpenses.value = []
+  closingCash.value = null
+  closeForm.value = { closing_note: '' }
+  await dailyStockStore.fetchToday()
+  const seeded: Record<string, { physical: number; reason: string }> = {}
+  for (const item of dailyStockStore.stocks) {
+    seeded[item.product_id] = { physical: systemRemaining(item), reason: '' }
+  }
+  stockAdjustments.value = seeded
+  showCloseForm.value = true
+}
+
+async function submitStockStep() {
+  stockSubmitting.value = true
   try {
-    await store.closeShift(store.activeShift.id, {
-      closing_cash: closeForm.value.closing_cash,
+    for (const item of dailyStockStore.stocks) {
+      const adj = stockAdjustments.value[item.product_id]
+      if (!adj) continue
+      const delta = adj.physical - systemRemaining(item)
+      if (delta !== 0) {
+        await dailyStockStore.adjustStock(item.product_id, delta, adj.reason.trim())
+      }
+    }
+    closeStep.value = 'cash'
+  } catch { /* error shown via dailyStockStore.error */ }
+  finally {
+    stockSubmitting.value = false
+  }
+}
+
+async function doCloseShift() {
+  if (!store.activeShift || closingCash.value === null) return
+  try {
+    const closed = await store.closeShift(store.activeShift.id, {
+      closing_cash: closingCash.value,
       closing_note: closeForm.value.closing_note || undefined,
     })
-    showCloseForm.value = false
-    closeForm.value = { closing_cash: null, closing_note: '' }
+    closedSummary.value = closed
+    closedExpenses.value = await financeStore.fetchShiftExpenses(closed.id)
+    closingCash.value = null
+    closeForm.value = { closing_note: '' }
     await store.fetchShifts()
+    closeStep.value = 'summary'
     toast.success('Shift ditutup', 'Kerja bagus hari ini! Ringkasan sudah tersimpan')
   } catch { /* error shown in form */ }
+}
+
+function finishWizard() {
+  showCloseForm.value = false
+  closeStep.value = 'stock'
+  closedSummary.value = null
+  closedExpenses.value = []
+}
+
+async function openDetail(shift: CashierShift) {
+  selectedShift.value = shift
+  detailExpenses.value = []
+  showDetail.value = true
+  if (shift.status === 'closed') {
+    detailExpenses.value = await financeStore.fetchShiftExpenses(shift.id)
+  }
 }
 
 onMounted(async () => {

@@ -188,6 +188,14 @@
                 </p>
                 <p class="text-small text-muted-foreground tabular-nums">{{ formatTime(new Date(tx.createdAt)) }}</p>
               </div>
+              <NuxtLink
+                v-if="canEdit && !tx.isAuto"
+                :to="`/finance/${tx.id}`"
+                class="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
+                :aria-label="`Ubah transaksi ${tx.category}`"
+              >
+                <Pencil class="w-4 h-4" :stroke-width="1.75" />
+              </NuxtLink>
               <button
                 v-if="canDelete && !tx.isAuto"
                 @click="confirmDelete(tx)"
@@ -237,7 +245,7 @@ definePageMeta({
 })
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Trash2 } from '@lucide/vue'
+import { Plus, Tag, Wallet, ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Trash2, Pencil } from '@lucide/vue'
 import { useFinanceStore } from '~/stores/finance'
 import { useAuthStore } from '~/stores/auth'
 import { formatRupiah } from '~/utils'
@@ -253,6 +261,7 @@ const authStore = useAuthStore()
 const toast = useToast()
 
 const canDelete = computed(() => authStore.hasPermission('finance.delete'))
+const canEdit = computed(() => authStore.hasPermission('finance.update'))
 
 function loadFinanceData() {
   financeStore.fetchEntries()

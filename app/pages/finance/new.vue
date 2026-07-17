@@ -107,7 +107,8 @@
           <button
             v-for="biz in financeStore.businesses"
             :key="biz.id"
-            @click="selectedBusinessId = biz.id"
+            @click="selectBusiness(biz.id)"
+            :disabled="switchingBusiness"
             class="h-11 px-4 rounded-lg text-body font-medium transition-all border active:scale-[0.97]"
             :class="selectedBusinessId === biz.id
               ? 'bg-primary text-primary-foreground border-primary shadow-elevation-1'
@@ -212,7 +213,8 @@
           <button
             v-for="biz in financeStore.businesses"
             :key="biz.id"
-            @click="selectedBusinessId = biz.id"
+            @click="selectBusiness(biz.id)"
+            :disabled="switchingBusiness"
             class="h-11 px-4 rounded-lg text-body font-medium transition-all border active:scale-[0.97]"
             :class="selectedBusinessId === biz.id
               ? 'bg-success text-success-foreground border-success shadow-elevation-1'
@@ -433,12 +435,14 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Check, CheckCircle2, Loader2, Plus, X } from '@lucide/vue'
 import { useFinanceStore, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '~/stores/finance'
 import { useAuthStore } from '~/stores/auth'
+import { useBusinessStore } from '~/stores/business'
 import { InlineAlert } from '~/components/ui/inline-alert'
 import { Input } from '~/components/ui/input'
 
 const router = useRouter()
 const financeStore = useFinanceStore()
 const authStore = useAuthStore()
+const businessStore = useBusinessStore()
 const toast = useToast()
 
 onMounted(() => {
@@ -462,6 +466,21 @@ const incomeCategoryNames = computed(() => {
 })
 
 const selectedBusinessId = ref<string | null>(authStore.user?.business_id ?? null)
+const switchingBusiness = ref(false)
+
+/** Businesses shown here may differ from the active one — switch context first so the entry is recorded against the business actually picked. */
+async function selectBusiness(id: string) {
+  if (id === selectedBusinessId.value || switchingBusiness.value) return
+  switchingBusiness.value = true
+  try {
+    await businessStore.switchBusiness(id)
+    selectedBusinessId.value = id
+  } catch (e: any) {
+    toast.error('Gagal beralih bisnis', e?.data?.message ?? 'Coba lagi sebentar, ya.')
+  } finally {
+    switchingBusiness.value = false
+  }
+}
 
 const amountInput = ref<HTMLInputElement | null>(null)
 const rawAmount = ref('')

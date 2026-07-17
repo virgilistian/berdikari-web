@@ -12,9 +12,28 @@
           <ArrowLeft class="w-5 h-5" :stroke-width="1.75" />
         </button>
         <div>
-          <h1 class="text-h1 text-foreground">Buka Stok Hari Ini</h1>
+          <h1 class="text-h1 text-foreground">Input Stok Harian</h1>
           <p class="text-small text-muted-foreground mt-0.5">{{ formattedDate }}</p>
         </div>
+      </div>
+
+      <!-- Target date -->
+      <div class="bg-surface rounded-xl border border-border p-4 space-y-2 shadow-elevation-1">
+        <label for="stock-date-input" class="text-small text-muted-foreground block">
+          Tanggal stok
+        </label>
+        <Input
+          id="stock-date-input"
+          v-model="selectedDate"
+          type="date"
+          :min="minDate"
+          required
+          class="w-full"
+          aria-label="Tanggal stok"
+        />
+        <p class="text-small text-muted-foreground/70">
+          Ingin menyiapkan stok lebih awal? Pilih tanggal yang diinginkan di sini.
+        </p>
       </div>
 
       <!-- Instruction -->
@@ -125,7 +144,7 @@
           <Loader2 v-if="store.loading" class="w-4 h-4 animate-spin" />
           <template v-else>
             <Check class="w-4 h-4" :stroke-width="2.5" />
-            Buka Stok Hari Ini
+            Simpan Stok
           </template>
         </button>
       </div>
@@ -160,7 +179,7 @@
         <Loader2 v-if="store.loading" class="w-4 h-4 animate-spin" />
         <template v-else>
           <Check class="w-4 h-4" :stroke-width="2.5" />
-          {{ store.loading ? 'Menyimpan...' : 'Buka Stok Hari Ini' }}
+          {{ store.loading ? 'Menyimpan...' : 'Simpan Stok' }}
         </template>
       </button>
     </div>
@@ -173,16 +192,25 @@ definePageMeta({
   permissions: ['inventory.create'],
 })
 
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Minus, Plus, Check, Loader2, Package } from '@lucide/vue'
 import { useDailyStockStore, type ProductForStock } from '~/stores/dailyStock'
 import { EmptyState } from '~/components/ui/empty-state'
 import { InlineAlert } from '~/components/ui/inline-alert'
+import { Input } from '~/components/ui/input'
+import { formatRupiah as formatCurrency } from '~/utils'
 
+const route = useRoute()
 const router = useRouter()
 const store = useDailyStockStore()
 const toast = useToast()
+
+// Deep-link from the draft detail page's "Edit" action: jump straight to that
+// date instead of the usual next-open-slot default.
+const editDate = typeof route.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.date)
+  ? route.query.date
+  : null
 
 interface StockItem {
   product_id: string
@@ -195,13 +223,20 @@ interface StockItem {
 
 const items = ref<StockItem[]>([])
 
-function formatCurrency(value: number | null): string {
-  if (!value) return ''
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
-}
+// Today is only selectable while it hasn't been opened yet (reopening it would
+// reset opening/sold/closing back to zero); otherwise the earliest pickable
+// date is tomorrow — pushing the flow forward to future-dated prep.
+const minDate = computed(() => {
+  if (!store.hasStocks) return store.today
+  const tomorrow = new Date(store.today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return tomorrow.toISOString().split('T')[0]!
+})
+
+const selectedDate = ref(store.today)
 
 const formattedDate = computed(() =>
-  new Date(store.today ?? new Date()).toLocaleDateString('id-ID', {
+  new Date(selectedDate.value).toLocaleDateString('id-ID', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 )
@@ -226,15 +261,30 @@ async function save() {
       product_id: i.product_id,
       product_name: i.product_name,
       opening_qty: i.opening_qty,
-    })))
-    toast.success('Stok hari ini dibuka', `${totalItems.value} pcs tercatat, siap untuk mulai jualan!`)
+    })), selectedDate.value)
+    toast.success('Stok tersimpan', `${totalItems.value} pcs tercatat untuk ${formattedDate.value}.`)
     router.push('/inventory')
   } catch {
     // error shown via store.error
   }
 }
 
+// Prefill from any stock already prepped for the chosen date (e.g. re-opening
+// a future date that was set up earlier); otherwise every item starts at 0.
+async function applyPrefill(date: string) {
+  await store.fetchDayDetail(date)
+  const byProduct = new Map(store.dayDetail.map(s => [s.product_id, s.opening_qty]))
+  items.value.forEach(item => {
+    item.opening_qty = byProduct.get(item.product_id) ?? 0
+  })
+}
+
+watch(selectedDate, (date) => applyPrefill(date))
+
 onMounted(async () => {
+  await store.fetchToday()
+  selectedDate.value = editDate ?? minDate.value
+
   await store.fetchProducts()
   items.value = store.products.map((p: ProductForStock) => ({
     product_id: p.id,
@@ -244,5 +294,7 @@ onMounted(async () => {
     current_stock: p.current_stock,
     opening_qty: 0,
   }))
+
+  await applyPrefill(selectedDate.value)
 })
 </script>

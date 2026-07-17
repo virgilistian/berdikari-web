@@ -64,12 +64,13 @@ export const useCartStore = defineStore('cart', () => {
             existing.quantity++;
             existing.subtotal = existing.quantity * existing.unit_price;
         } else {
+            const unitPrice = Number(product.price);
             items.value.push({
                 product_id: product.id,
                 name: product.name,
-                unit_price: product.price,
+                unit_price: unitPrice,
                 quantity: 1,
-                subtotal: product.price,
+                subtotal: unitPrice,
             });
         }
     };
