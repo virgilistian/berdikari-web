@@ -22,6 +22,7 @@ export interface CashierShift {
   expected_cash: number | null
   cash_difference: number | null
   transaction_count: number
+  total_items_sold: number
   total_sales: number
   total_expenses: number
   net_income: number | null

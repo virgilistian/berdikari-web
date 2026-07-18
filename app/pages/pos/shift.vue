@@ -242,10 +242,10 @@
         <!-- Step 2: cash closing -->
         <template v-else-if="closeStep === 'cash'">
           <div v-if="store.activeShift" class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
-            <!-- Summary preview -->
+            <!-- Sales summary preview -->
             <div class="bg-muted/50 rounded-xl p-4 space-y-2">
-              <p class="text-small text-muted-foreground font-medium">Ringkasan Shift</p>
-              <div class="grid grid-cols-2 gap-3">
+              <p class="text-small text-muted-foreground font-medium">Ringkasan Penjualan</p>
+              <div class="grid grid-cols-3 gap-3">
                 <div>
                   <p class="text-caption text-muted-foreground">Total Penjualan</p>
                   <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(store.activeShift.total_sales) }}</p>
@@ -255,8 +255,8 @@
                   <p class="text-body font-bold tabular-nums text-foreground">{{ store.activeShift.transaction_count }}</p>
                 </div>
                 <div>
-                  <p class="text-caption text-muted-foreground">Kas Awal</p>
-                  <p class="text-body font-semibold tabular-nums">{{ formatCurrency(store.activeShift.opening_cash) }}</p>
+                  <p class="text-caption text-muted-foreground">Item Terjual</p>
+                  <p class="text-body font-bold tabular-nums text-foreground">{{ store.activeShift.total_items_sold }}</p>
                 </div>
               </div>
             </div>
@@ -269,8 +269,39 @@
                 :key="method"
                 class="flex items-center justify-between px-3 py-2 bg-surface rounded-lg border border-border/60"
               >
-                <span class="text-small text-foreground capitalize">{{ methodLabel(method) }}</span>
+                <span class="text-small text-foreground capitalize">{{ paymentMethodLabel(method) }}</span>
                 <span class="text-small font-semibold tabular-nums">{{ formatCurrency(amount) }}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <p class="text-caption text-muted-foreground">Total Tunai</p>
+                  <p class="text-small font-semibold tabular-nums">{{ formatCurrency(liveCashSales) }}</p>
+                </div>
+                <div>
+                  <p class="text-caption text-muted-foreground">Total Non-Tunai</p>
+                  <p class="text-small font-semibold tabular-nums">{{ formatCurrency(liveNonCashSales) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cash summary: Opening + Cash sales - Expenses = Expected -->
+            <div class="bg-muted/50 rounded-xl p-4 space-y-1.5">
+              <p class="text-small text-muted-foreground font-medium">Ringkasan Kas</p>
+              <div class="flex justify-between text-small">
+                <span class="text-muted-foreground">Kas Awal</span>
+                <span class="text-foreground tabular-nums">{{ formatCurrency(store.activeShift.opening_cash) }}</span>
+              </div>
+              <div class="flex justify-between text-small">
+                <span class="text-muted-foreground">+ Penjualan Tunai</span>
+                <span class="text-foreground tabular-nums">{{ formatCurrency(liveCashSales) }}</span>
+              </div>
+              <div class="flex justify-between text-small">
+                <span class="text-muted-foreground">- Pengeluaran Operasional</span>
+                <span class="text-foreground tabular-nums">{{ formatCurrency(store.activeShift.total_expenses) }}</span>
+              </div>
+              <div class="flex justify-between text-small pt-1.5 border-t border-border/60">
+                <span class="text-muted-foreground font-medium">Kas Seharusnya</span>
+                <span class="text-foreground font-semibold tabular-nums">{{ formatCurrency(expectedCashLive) }}</span>
               </div>
             </div>
 
@@ -285,10 +316,8 @@
                 class="mt-1 w-full h-11 px-3 bg-background border border-input rounded-lg text-body focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-colors"
                 placeholder="0"
               />
-              <!-- Live difference preview -->
-              <p v-if="closingCash !== null" class="text-small mt-1.5"
-                :class="cashDiff < 0 ? 'text-destructive' : cashDiff > 0 ? 'text-success' : 'text-muted-foreground'"
-              >
+              <!-- Live difference preview: green when balanced/excess, red when short -->
+              <p v-if="closingCash !== null" class="text-small font-semibold mt-1.5" :class="diffColorClass(cashDiff)">
                 Selisih: {{ formatDiff(cashDiff) }}
               </p>
             </div>
@@ -324,23 +353,10 @@
         <!-- Step 3: summary -->
         <template v-else-if="closeStep === 'summary' && closedSummary">
           <div class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
-            <div class="bg-success/10 border border-success/20 rounded-xl p-4 space-y-2">
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <p class="text-caption text-muted-foreground">Total Penjualan</p>
-                  <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(closedSummary.total_sales) }}</p>
-                </div>
-                <div>
-                  <p class="text-caption text-muted-foreground">Transaksi</p>
-                  <p class="text-body font-bold tabular-nums text-foreground">{{ closedSummary.transaction_count }}</p>
-                </div>
-                <div>
-                  <p class="text-caption text-muted-foreground">Kas Diterima</p>
-                  <p class="text-body font-bold tabular-nums text-foreground">{{ formatCurrency(closedSummary.closing_cash) }}</p>
-                </div>
-              </div>
+            <div class="bg-success/10 border border-success/20 rounded-xl p-3 text-center">
+              <p class="text-small font-semibold text-success">Shift berhasil ditutup</p>
             </div>
-            <ShiftSummaryDetails :shift="closedSummary" :expenses="closedExpenses" />
+            <ShiftSummaryDetails :shift="closedSummary" :expenses="closedExpenses" :business-name="businessName" />
           </div>
           <DrawerFooter>
             <button type="button" :class="cn(buttonVariants(), 'w-full')" @click="finishWizard">
@@ -358,7 +374,8 @@
           <DrawerTitle>Detail Shift</DrawerTitle>
         </DrawerHeader>
         <div v-if="selectedShift" class="flex-1 overflow-y-auto px-5 pb-4 space-y-4">
-          <div class="space-y-2">
+          <!-- Shift still open: the full report only exists once it's closed -->
+          <div v-if="selectedShift.status === 'open'" class="space-y-2">
             <div class="flex justify-between text-small">
               <span class="text-muted-foreground">Kasir</span>
               <span class="text-foreground font-medium">{{ selectedShift.cashier?.name ?? '—' }}</span>
@@ -367,62 +384,17 @@
               <span class="text-muted-foreground">Buka</span>
               <span class="text-foreground">{{ formatDateTime(selectedShift.opened_at) }}</span>
             </div>
-            <div v-if="selectedShift.closed_at" class="flex justify-between text-small">
-              <span class="text-muted-foreground">Tutup</span>
-              <span class="text-foreground">{{ formatDateTime(selectedShift.closed_at) }}</span>
-            </div>
             <div class="flex justify-between text-small">
               <span class="text-muted-foreground">Kas Awal</span>
               <span class="text-foreground font-semibold tabular-nums">{{ formatCurrency(selectedShift.opening_cash) }}</span>
             </div>
-            <div v-if="selectedShift.closing_cash !== null" class="flex justify-between text-small">
-              <span class="text-muted-foreground">Kas Aktual</span>
-              <span class="text-foreground font-semibold tabular-nums">{{ formatCurrency(selectedShift.closing_cash) }}</span>
-            </div>
-            <div v-if="selectedShift.expected_cash !== null" class="flex justify-between text-small">
-              <span class="text-muted-foreground">Kas Seharusnya</span>
-              <span class="text-foreground tabular-nums">{{ formatCurrency(selectedShift.expected_cash) }}</span>
-            </div>
-            <div v-if="selectedShift.cash_difference !== null" class="flex justify-between text-small">
-              <span class="text-muted-foreground">Selisih Kas</span>
-              <span
-                class="font-semibold tabular-nums"
-                :class="selectedShift.cash_difference < 0 ? 'text-destructive' : selectedShift.cash_difference > 0 ? 'text-success' : 'text-foreground'"
-              >{{ formatDiff(selectedShift.cash_difference) }}</span>
-            </div>
-            <div class="flex justify-between text-small">
-              <span class="text-muted-foreground">Total Penjualan</span>
-              <span class="text-foreground font-bold tabular-nums text-success">{{ formatCurrency(selectedShift.total_sales) }}</span>
-            </div>
-            <div class="flex justify-between text-small">
-              <span class="text-muted-foreground">Jumlah Transaksi</span>
-              <span class="text-foreground font-semibold">{{ selectedShift.transaction_count }}</span>
-            </div>
-          </div>
-
-          <div v-if="selectedShift.payment_breakdown && Object.keys(selectedShift.payment_breakdown).length > 0">
-            <p class="text-small text-muted-foreground font-medium mb-2">Rekapitulasi Pembayaran</p>
-            <div class="space-y-1.5">
-              <div
-                v-for="(amount, method) in selectedShift.payment_breakdown"
-                :key="method"
-                class="flex justify-between items-center px-3 py-2 bg-muted/40 rounded-lg"
-              >
-                <span class="text-small text-foreground">{{ methodLabel(method) }}</span>
-                <span class="text-small font-semibold tabular-nums">{{ formatCurrency(amount) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="selectedShift.closing_note" class="bg-warning/8 border border-warning/20 rounded-xl p-3">
-            <p class="text-caption text-muted-foreground mb-0.5">Catatan</p>
-            <p class="text-small text-foreground italic">"{{ selectedShift.closing_note }}"</p>
           </div>
 
           <ShiftSummaryDetails
-            v-if="selectedShift.status === 'closed'"
+            v-else
             :shift="selectedShift"
             :expenses="detailExpenses"
+            :business-name="businessName"
           />
         </div>
         <DrawerFooter>
@@ -448,7 +420,8 @@ import { useAuthStore } from '~/stores/auth'
 import { useShiftStore, type CashierShift } from '~/stores/shift'
 import { useDailyStockStore, type DailyStockItem } from '~/stores/dailyStock'
 import { useFinanceStore, type FinanceEntry } from '~/stores/finance'
-import { cn } from '~/utils'
+import { useBusinessStore } from '~/stores/business'
+import { cn, paymentMethodLabel } from '~/utils'
 
 definePageMeta({
   middleware: ['auth', 'permission'],
@@ -459,6 +432,7 @@ const auth = useAuthStore()
 const store = useShiftStore()
 const dailyStockStore = useDailyStockStore()
 const financeStore = useFinanceStore()
+const businessStore = useBusinessStore()
 const toast = useToast()
 
 const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -501,14 +475,29 @@ const filteredShifts = computed(() => {
   return store.shifts.filter(s => s.status === statusFilter.value)
 })
 
+const businessName = computed(() =>
+  businessStore.businesses.find(b => b.id === auth.user?.business_id)?.name ?? businessStore.businesses[0]?.name
+)
+
+const liveCashSales = computed(() => Number(store.activeShift?.payment_breakdown?.cash ?? 0))
+const liveNonCashSales = computed(() => Number(store.activeShift?.total_sales ?? 0) - liveCashSales.value)
+
+const expectedCashLive = computed(() => {
+  if (!store.activeShift) return 0
+  const opening = Number(store.activeShift.opening_cash ?? 0)
+  const expenses = Number(store.activeShift.total_expenses ?? 0)
+  return opening + liveCashSales.value - expenses
+})
+
 const cashDiff = computed(() => {
   if (!store.activeShift || closingCash.value === null) return 0
-  const cashSales = Number(store.activeShift.payment_breakdown?.cash ?? 0)
-  const expenses = Number(store.activeShift.total_expenses ?? 0)
-  const opening = Number(store.activeShift.opening_cash ?? 0)
-  const expected = opening + cashSales - expenses
-  return closingCash.value - expected
+  return closingCash.value - expectedCashLive.value
 })
+
+function diffColorClass(value: number): string {
+  if (!value) return 'text-success'
+  return value > 0 ? 'text-success' : 'text-destructive'
+}
 
 function systemRemaining(item: DailyStockItem): number {
   return item.remaining_qty ?? Math.max(0, item.opening_qty + item.adjustment_qty - item.sold_qty)
@@ -540,16 +529,6 @@ function formatTime(datetime: string): string {
 
 function formatDateTime(datetime: string): string {
   return new Date(datetime).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-}
-
-function methodLabel(method: string): string {
-  const labels: Record<string, string> = {
-    cash: 'Tunai',
-    qris: 'QRIS',
-    transfer: 'Transfer',
-    other: 'Lainnya',
-  }
-  return labels[method] ?? method
 }
 
 async function doOpenShift() {
@@ -629,6 +608,6 @@ async function openDetail(shift: CashierShift) {
 }
 
 onMounted(async () => {
-  await Promise.all([store.fetchActive(), store.fetchShifts()])
+  await Promise.all([store.fetchActive(), store.fetchShifts(), businessStore.fetchBusinesses()])
 })
 </script>

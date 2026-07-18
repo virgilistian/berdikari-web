@@ -11,6 +11,17 @@ export function formatRupiah(value: number | string | null | undefined): string 
   return 'Rp ' + (Number.isFinite(n) ? n : 0).toLocaleString('id-ID')
 }
 
+/** Human label for a sale payment method key (cash/qris/transfer/other/…). */
+export function paymentMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    cash: 'Tunai',
+    qris: 'QRIS',
+    transfer: 'Transfer',
+    other: 'Lainnya',
+  }
+  return labels[method] ?? method
+}
+
 /** Indonesian month names (index 0 = Januari), shared across the Tax module. */
 export const MONTH_NAMES_ID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
