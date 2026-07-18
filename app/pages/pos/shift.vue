@@ -503,8 +503,10 @@ const filteredShifts = computed(() => {
 
 const cashDiff = computed(() => {
   if (!store.activeShift || closingCash.value === null) return 0
-  const cashSales = store.activeShift.payment_breakdown?.cash ?? 0
-  const expected = (store.activeShift.opening_cash ?? 0) + cashSales
+  const cashSales = Number(store.activeShift.payment_breakdown?.cash ?? 0)
+  const expenses = Number(store.activeShift.total_expenses ?? 0)
+  const opening = Number(store.activeShift.opening_cash ?? 0)
+  const expected = opening + cashSales - expenses
   return closingCash.value - expected
 })
 
@@ -566,7 +568,7 @@ async function openCloseWizard() {
   closedExpenses.value = []
   closingCash.value = null
   closeForm.value = { closing_note: '' }
-  await dailyStockStore.fetchToday()
+  await Promise.all([store.fetchActive(), dailyStockStore.fetchToday()])
   const seeded: Record<string, { physical: number; reason: string }> = {}
   for (const item of dailyStockStore.stocks) {
     seeded[item.product_id] = { physical: systemRemaining(item), reason: '' }

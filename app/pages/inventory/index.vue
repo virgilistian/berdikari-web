@@ -51,6 +51,7 @@
               <th class="px-4 py-3 text-small font-semibold text-muted-foreground text-right">Menu</th>
               <th class="px-4 py-3 text-small font-semibold text-muted-foreground text-right">Awal</th>
               <th class="px-4 py-3 text-small font-semibold text-muted-foreground text-right">Akhir</th>
+              <th v-if="showDevDelete" class="px-4 py-3 text-small font-semibold text-muted-foreground text-right">Dev</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
@@ -76,12 +77,40 @@
               <td class="px-4 py-3 text-body text-muted-foreground text-right tabular-nums">{{ h.total_menu_items }}</td>
               <td class="px-4 py-3 text-body text-muted-foreground text-right tabular-nums">{{ h.total_opening_qty }}</td>
               <td class="px-4 py-3 text-body font-semibold text-right tabular-nums text-foreground">{{ h.total_closing_qty }}</td>
+              <td v-if="showDevDelete" class="px-4 py-3 text-right" @click.stop @keydown.enter.stop>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-destructive hover:bg-destructive/10 active:bg-destructive/20 transition-colors"
+                  :aria-label="`Hapus stok harian ${formatRowDate(h.date)} (khusus development)`"
+                  @click="openDeleteDialog(h)"
+                >
+                  <Trash2 class="w-4 h-4" :stroke-width="1.75" />
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
       <InlineAlert v-if="store.error" variant="destructive">{{ store.error }}</InlineAlert>
     </template>
+
+    <ConfirmDialog
+      v-model:open="confirmDelete"
+      title="Hapus Stok Harian Ini? (Dev)"
+      description="Fitur khusus development. Menghapus data stok harian bisa memengaruhi data shift kasir dan valuasi stok yang terkait tanggal ini. Tindakan ini tidak bisa dibatalkan."
+      confirm-label="Ya, Hapus"
+      :loading="deleting"
+      @confirm="doDelete"
+    />
+
+    <ConfirmDialog
+      v-model:open="confirmForceDelete"
+      title="Hari Ini Sudah Ditutup — Hapus Paksa?"
+      description="Valuasi stok dan ringkasan shift kasir kemungkinan sudah memakai data hari ini. Angka yang sudah tersimpan di shift/valuasi tidak akan berubah, tapi riwayat stok harian untuk tanggal ini akan hilang permanen."
+      confirm-label="Ya, Hapus Paksa"
+      :loading="deleting"
+      @confirm="doForceDelete"
+    />
 
   </div>
 </template>
@@ -92,15 +121,70 @@ definePageMeta({
   permissions: ['inventory.view'],
 })
 
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Boxes } from '@lucide/vue'
-import { useDailyStockStore } from '~/stores/dailyStock'
+import { Plus, Boxes, Trash2 } from '@lucide/vue'
+import { useDailyStockStore, type DailyStockHistoryRow } from '~/stores/dailyStock'
+import { useAuthStore } from '~/stores/auth'
 import { EmptyState } from '~/components/ui/empty-state'
 import { InlineAlert } from '~/components/ui/inline-alert'
+import { ConfirmDialog } from '~/components/ui/confirm-dialog'
 
 const router = useRouter()
 const store = useDailyStockStore()
+const auth = useAuthStore()
+const toast = useToast()
+
+// Delete is a development-only cleanup tool: hidden whenever the app is
+// built for production (import.meta.dev is compiled out of prod bundles),
+// and further gated by the same permission that guards draft deletion.
+const showDevDelete = computed(() => import.meta.dev && auth.hasPermission('inventory.create'))
+
+const deleteTarget = ref<DailyStockHistoryRow | null>(null)
+const confirmDelete = ref(false)
+const confirmForceDelete = ref(false)
+const deleting = ref(false)
+
+function openDeleteDialog(row: DailyStockHistoryRow) {
+  deleteTarget.value = row
+  confirmDelete.value = true
+}
+
+async function doDelete() {
+  if (!deleteTarget.value) return
+  const target = deleteTarget.value
+  deleting.value = true
+  try {
+    await store.deleteDayForDev(target.date)
+    confirmDelete.value = false
+    deleteTarget.value = null
+    toast.success('Stok harian dihapus', `Data stok ${formatRowDate(target.date)} sudah dihapus.`)
+  } catch (e: any) {
+    if (e?.response?.status === 409) {
+      confirmDelete.value = false
+      confirmForceDelete.value = true
+    }
+    // other errors are shown inline via store.error
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function doForceDelete() {
+  if (!deleteTarget.value) return
+  const target = deleteTarget.value
+  deleting.value = true
+  try {
+    await store.deleteDayForDev(target.date, true)
+    confirmForceDelete.value = false
+    deleteTarget.value = null
+    toast.success('Stok harian dihapus', `Data stok ${formatRowDate(target.date)} sudah dihapus paksa.`)
+  } catch {
+    // error shown inline via store.error
+  } finally {
+    deleting.value = false
+  }
+}
 
 const formattedDate = computed(() =>
   new Date(store.today ?? new Date()).toLocaleDateString('id-ID', {

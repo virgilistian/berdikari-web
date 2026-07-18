@@ -175,10 +175,35 @@ export const useDailyStockStore = defineStore('dailyStock', () => {
     }
   }
 
+  /**
+   * [DEV] Delete a daily-stock day regardless of status. Only reachable
+   * behind an `import.meta.dev` UI gate — the API itself 404s in production.
+   */
+  async function deleteDayForDev(date: string, force = false) {
+    error.value = null
+    try {
+      const api = useApi()
+      const res = await api<{ data: { deleted_count: number; was_closed: boolean } }>(
+        `/v1/inventory/daily-stock/dev/${date}`,
+        {
+          // Laravel's `boolean` validation rule only accepts 1/0/'1'/'0' —
+          // not the literal strings "true"/"false" ofetch would serialize.
+          method: 'DELETE',
+          query: { business_id: businessId(), force: force ? 1 : 0 },
+        }
+      )
+      history.value = history.value.filter(h => h.date !== date)
+      return res.data
+    } catch (e: any) {
+      error.value = e?.data?.message ?? 'Stok harian belum bisa dihapus. Coba lagi sebentar, ya.'
+      throw e
+    }
+  }
+
   return {
     stocks, products, loading, error, today,
     hasStocks, isOpen, isClosed,
-    fetchToday, fetchProducts, openDay, adjustStock, deleteDay,
+    fetchToday, fetchProducts, openDay, adjustStock, deleteDay, deleteDayForDev,
     history, historyLoading, fetchHistory,
     dayDetail, dayDetailLoading, fetchDayDetail,
   }
